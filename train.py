@@ -11,9 +11,9 @@ import torch
 
 
 if __name__ == '__main__':
-    wandb.init(project="depth_super_res")
     opt = TrainOptions().parse()   # get training options
     vis = Visualizer(opt)
+    wandb.init(project="depth_super_res", name=opt.name)
     wandb.config.update(opt)
     dataset = create_dataset(opt)  
     dataset_size = len(dataset)    # get the number of images in the dataset.
@@ -37,7 +37,7 @@ if __name__ == '__main__':
                 wandb.log(model.get_current_losses(), step = global_iter)
             if global_iter % opt.img_freq == 0:
                 print('{} img procesed out of {}, taken {} sec per 1 batch'.format((i+1)*opt.batch_size, dataset_size, time.time()-iter_start_time))
-                fig = vis.plot_a2b(model.get_current_vis())#vis.plot_img(model.get_current_vis())
+                fig = vis.plot_img(model.get_current_vis())#vis.plot_img(model.get_current_vis())
                 wandb.log({"chart": fig}, step=global_iter)
                 plt.close(fig)
 #             if total_iters % opt.save_latest_freq == 0:   # cache our latest model every <save_latest_freq> iterations

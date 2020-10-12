@@ -9,7 +9,8 @@ class TestOptions(BaseOptions):
 
     def initialize(self, parser):
         parser = BaseOptions.initialize(self, parser)  # define shared options
-#         parser.add_argument('--results_dir', type=str, default='./results/', help='saves results here.')
+        parser.add_argument('--img_dir', type=str, default='/all_data/hdd/un_depth/results/max/', help='saves results here.')
+        parser.add_argument('--save_img', type=bool, default=False, help='save image?')
 #         parser.add_argument('--aspect_ratio', type=float, default=1.0, help='aspect ratio of result images')
         parser.add_argument('--phase', type=str, default='test', help='train, val, test, etc')
         # Dropout and Batchnorm has different behavioir during training and test.
@@ -21,7 +22,7 @@ class TestOptions(BaseOptions):
 #         parser.set_defaults(load_size_h=parser.get_default('crop_size'))
 #         parser.set_defaults(load_size_w=parser.get_default('crop_size'))
         parser.set_defaults(data_shuffle=False)
-        parser.set_defaults(batch_size=2)
+        parser.set_defaults(batch_size=5)
 #         parser.set_defaults(num_workers=4)
         self.isTrain = False
         return parser

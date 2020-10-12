@@ -19,24 +19,6 @@ class BaseOptions():
 
     def initialize(self, parser):
         """Define the common options that are used in both training and test."""
-#         Dataset related opt
-#         parser.add_argument('--max_distance', type=float, default=8000.0, help='all depth bigger will seted to this value')
-#         parser.add_argument('--use_edge', action='store_true', help='use edge')
-#         parser.add_argument('--change_mean', action='store_true', help='substract mean dif in dataset')
-#         parser.add_argument('--mean_dif', type=int, default=500, help='dif from B and A')
-#         Model relates opt
-#         parser.add_argument('--lambda_cycle_A', type=float, default=1.0, help='weight for cycle loss (A -> B -> A)')
-#         parser.add_argument('--lambda_identity', type=float, default=1.0, help='identical loss')
-#         parser.add_argument('--lambda_reconstruction_edge', type=float, default=1.0, help='weight for reconstruction loss')
-#         parser.add_argument('--lambda_attention', type=float, default=1.0, help='weight for attention loss')
-#         parser.add_argument('--l_depth_large_A', type=float, default=1.0, help='start of depth range loss')
-#         parser.add_argument('--l_depth_large_B', type=float, default=1.0, help='start of depth range loss')
-#         parser.add_argument('--l_depth_small_A', type=float, default=1.0, help='finish of depth range loss')
-#         parser.add_argument('--l_depth_small_B', type=float, default=1.0, help='finish of depth range loss')
-#         parser.add_argument('--l_depth_max_iter', type=int, default=20000, help='max iter with big depth rec. loss')
-#         parser.add_argument('--use_blur', action='store_true', help='use bluring for l1 loss')
-#         parser.add_argument('--num_iter_gen', type=int, default=1, help='iteration of gen per 1 iter of dis')
-#         parser.add_argument('--num_iter_dis', type=int, default=1, help='iteration of dis per 1 iter of gen')
         
         # basic parameters
         parser.add_argument('--dataroot', type=str, default='/all_data/hdd/un_depth/semi/sample', help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
@@ -45,7 +27,9 @@ class BaseOptions():
         parser.add_argument('--checkpoints_dir', type=str, default='./checkpoints', help='models are saved here')
         
         # model parameters
-        parser.add_argument('--model', type=str, default='A2B', help='chooses which model to use. [semi_cycle_gan | A2B | holes_unet ]')
+        parser.add_argument('--model', type=str, default='semi_cycle_gan', help='chooses which model to use. [semi_cycle_gan | A2B | holes_unet ]')
+        parser.add_argument('--old_generator', type=bool, default=False, help='use old version of building generator')
+        parser.add_argument('--disc_for_normals', type=bool, default=False, help='use old version of building generator')
 #         parser.add_argument('--attention', action='store_true', help='use attention')
         parser.add_argument('--use_semantic', type=bool, default=False, help='use semantic')
         parser.add_argument('--n_downsampling', type=int, default=3, help='# of downsamling')
@@ -58,7 +42,7 @@ class BaseOptions():
         parser.add_argument('--ndf', type=int, default=64, help='# of discrim filters in the first conv layer')
         parser.add_argument('--netD', type=str, default='n_layers', help='specify discriminator architecture [basic | n_layers | pixel]. The basic model is a 70x70 PatchGAN. n_layers allows you to specify the layers in the discriminator, basic = n_layers=3, pixel-3 conv layer, all PatchGAN')
         parser.add_argument('--n_layers_D', type=int, default=3, help='only used if netD==n_layers')
-#         parser.add_argument('--netG', type=str, default='resnet_6blocks', help='specify generator architecture [resnet_9blocks | resnet_6blocks]')
+        parser.add_argument('--netG', type=str, default='resnet_6blocks', help='specify generator architecture [resnet_9blocks | resnet_6blocks]')
         parser.add_argument('--n_blocks', type=int, default=9, help='# of res blocks')
         parser.add_argument('--norm', type=str, default='instance', help='instance normalization or batch normalization [instance | batch | none]')
         parser.add_argument('--upsampling_type', type=str, default='upconv', help='upsampling operation [upconv | uptranspose | transpose]')
@@ -66,13 +50,9 @@ class BaseOptions():
 #         parser.add_argument('--init_std', type=float, default=0.02, help='std for normal initialization.')
         parser.add_argument('--dropout', type=bool, default=True, help='dropout for the generator')
         parser.add_argument('--gan_mode', type=str, default='lsgan', help='the type of GAN objective. [vanilla| lsgan | wgangp]. vanilla GAN loss is the cross-entropy objective used in the original GAN paper.')
-            ## edge param
-#         parser.add_argument('--ngf_depth_edge', type=int, default=16, help='# of gen filters in the first conv layer for depth')
-#         parser.add_argument('--netG_d2e', type=str, default='unet_256', help='specify generator architecture [resnet_9blocks | resnet_6blocks | unet_256 | unet_128]')
-#         parser.add_argument('--net_d2e_weights', type=str, default='./checkpoints/depth_edge_unet_1.5_weight_binatyloss/last_netG_B.pth', help='location of weight of depth to edge network')
     
         # dataset parameters
-        parser.add_argument('--dataset_mode', type=str, default='A2B', help='chooses how datasets are loaded. [semi_cycle | A2B | holes')
+        parser.add_argument('--dataset_mode', type=str, default='semi_cycle', help='chooses how datasets are loaded. [semi_cycle | A2B | holes')
         parser.add_argument('--max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.') 
         parser.add_argument('--data_shuffle', type=bool, default=True, help='if true, takes images in order to make batches, otherwise takes them randomly')
         parser.add_argument('--num_workers', default=4, type=int, help='# threads for loading data')

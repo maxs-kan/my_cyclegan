@@ -28,8 +28,9 @@ class A2BModel(BaseModel, nn.Module):
         super(A2BModel, self).__init__(opt)
         if self.isTrain:
             self.loss_names = ['D_A_depth', 'G_A', 'depth_range_A']
-        self.visuals_names = ['real_img_A', 'real_depth_A', 'real_depth_B','fake_depth_B', 'adv_depth_B', 'mask']
-        
+        self.visuals_names = ['real_img_A', 'real_depth_A', 'real_depth_B','fake_depth_B', 'adv_depth_B']
+        if self.isTrain:
+            self.visuals_names.append['mask']
         if self.isTrain:
             self.model_names = ['netG_A', 'netD_A']
         else: 
@@ -45,21 +46,24 @@ class A2BModel(BaseModel, nn.Module):
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
             self.l_depth_A = self.opt.l_depth_A_begin
-        self.holes_pred = network.define_Unet(opt)
-        self.load_holes_pred()
-        self.set_requires_grad([self.holes_pred], False)
+            self.holes_pred = network.define_Unet(opt)
+            self.load_holes_pred()
+            self.set_requires_grad([self.holes_pred], False)
         
-        self.l_depth_A = self.opt.l_depth_A_begin
+            self.l_depth_A = self.opt.l_depth_A_begin
     
     def set_input(self, input):
         self.real_img_A = input['Image'].to(self.device)
         self.real_depth_B = input['Depth'].to(self.device)
         self.adv_depth_B = input['Adv_depth'].to(self.device)
-        mask = self.holes_pred(self.real_img_A)
-        mask = torch.sigmoid(mask)
-        self.mask = mask > 0.5
-        real_depth_A = input['Bad_depth'].to(self.device)
-        self.real_depth_A = torch.where(self.mask, torch.ones_like(real_depth_A)*(-1.0), real_depth_A)
+        if self.isTrain:
+            mask = self.holes_pred(self.real_img_A)
+            mask = torch.sigmoid(mask)
+            self.mask = mask > 0.5
+            real_depth_A = input['Bad_depth'].to(self.device)
+            self.real_depth_A = torch.where(self.mask, torch.ones_like(real_depth_A)*(-1.0), real_depth_A)
+        else: 
+            self.real_depth_A = input['Bad_depth'].to(self.device)
 
     
     def forward(self):

@@ -28,10 +28,14 @@ class SemiCycleGANModel(BaseModel, nn.Module):
     
     def __init__(self, opt):
         super(SemiCycleGANModel, self).__init__(opt)
+        
         if self.isTrain:
-            self.loss_names = ['D_A_depth', 'D_B_depth', 'D_A_normal', 'D_B_normal', 'G_A', 'G_B', 'cycle_A', 'idt_A', 'idt_B', 'depth_range_A','depth_range_B']
+            self.loss_names = ['D_A_depth', 'D_B_depth', 'G_A', 'G_B', 'cycle_A', 'idt_A', 'idt_B', 'depth_range_A','depth_range_B']
             if self.opt.use_semantic:
                 self.loss_names.append('rec_semantic_A')
+            if self.opt.disc_for_normals:
+                self.loss_names.append(['D_A_normal', 'D_B_normal',])
+        
         self.visuals_names = ['real_img_A', 'real_depth_A',
                               'real_img_B', 'real_depth_B',
                               'fake_depth_B', 'fake_depth_A', 'rec_depth_A', 'idt_A', 'idt_B', 'name_A', 'name_B']
@@ -40,20 +44,27 @@ class SemiCycleGANModel(BaseModel, nn.Module):
             self.visuals_names.append('rec_semantic_A')
         
         if self.isTrain:
-            self.model_names = ['netG_A', 'netG_B', 'netD_A_depth', 'netD_B_depth', 'netD_A_normal', 'netD_B_normal']
+            self.model_names = ['netG_A', 'netG_B', 'netD_A_depth', 'netD_B_depth']
+            if self.opt.disc_for_normals:
+                self.model_names.append([ 'netD_A_normal', 'netD_B_normal'])
         else: 
             self.model_names = ['netG_A', 'netG_B']
-#         if self.opt.use_semantic:
-        self.netG_A = network.define_Gen(opt, direction='A2B')
-        self.netG_B = network.define_Gen(opt, direction='B2A')
-#         else:
-#             self.netG_A = network.define_G(opt, direction='A2B')
-#             self.netG_B = network.define_G(opt, direction='B2A')
+        
+        if self.opt.old_generator:
+            self.netG_A = network.define_G(opt, direction='A2B')
+            self.netG_B = network.define_G(opt, direction='B2A')
+        else:
+            self.netG_A = network.define_Gen(opt, direction='A2B')
+            self.netG_B = network.define_Gen(opt, direction='B2A')
+            
         if self.isTrain:
-            self.netD_A_normal = network.define_D(opt, input_type = 'normal')
-            self.netD_B_normal = network.define_D(opt, input_type = 'normal')
             self.netD_A_depth = network.define_D(opt, input_type = 'depth')
             self.netD_B_depth = network.define_D(opt, input_type = 'depth')
+            self.disc = [self.netD_A_depth, self.netD_B_depth]
+            if self.opt.disc_for_normals:
+                self.netD_A_normal = network.define_D(opt, input_type = 'normal')
+                self.netD_B_normal = network.define_D(opt, input_type = 'normal')
+                self.disc.append(self.netD_A_normal, self.netD_B_normal)
 #             self.fake_A_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
 #             self.fake_B_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
             self.criterionGAN = network.GANLoss(opt.gan_mode).to(self.device)  # define GAN loss.
@@ -61,12 +72,11 @@ class SemiCycleGANModel(BaseModel, nn.Module):
             self.criterionIdt = nn.L1Loss()
             self.criterionDepthRange = network.MaskedL1Loss()
             if self.opt.use_semantic:
-#                 self.netDepth2Img = network.load_d2e(opt)
 #                 weight_class = torch.tensor([3.0]).to(self.device)   #HYPERPARAM
                 self.criterionSemantic = nn.CrossEntropyLoss()
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr_G, betas=(opt.beta1, 0.999))
-            self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A_depth.parameters(), self.netD_A_normal.parameters(),
-                                                                self.netD_B_depth.parameters(), self.netD_B_normal.parameters()), lr=opt.lr_D, betas=(opt.beta1, 0.999))
+            disc_params = [m.parameters() for m in self.disc]
+            self.optimizer_D = torch.optim.Adam(itertools.chain(*disc_params), lr=opt.lr_D, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
             
@@ -107,18 +117,23 @@ class SemiCycleGANModel(BaseModel, nn.Module):
     def backward_D_A(self):
 #         fake_B = self.fake_B_pool
         self.loss_D_A_depth = self.backward_D_base(self.netD_A_depth, self.real_depth_B, self.fake_depth_B)
-        self.loss_D_A_normal = self.backward_D_base(self.netD_A_normal, self.surf_normals(self.real_depth_B), self.surf_normals(self.fake_depth_B))
-#         self.loss_D_A = self.loss_D_A_depth + self.loss_D_A_normal
+        if self.opt.disc_for_normals:
+            self.loss_D_A_normal = self.backward_D_base(self.netD_A_normal, self.surf_normals(self.real_depth_B), self.surf_normals(self.fake_depth_B))
+    
     def backward_D_B(self):
         self.loss_D_B_depth = self.backward_D_base(self.netD_B_depth, self.real_depth_A, self.fake_depth_A)
-        self.loss_D_B_normal = self.backward_D_base(self.netD_B_normal, self.surf_normals(self.real_depth_A), self.surf_normals(self.fake_depth_A))
-#         self.loss_D_B = self.loss_D_B_depth + self.loss_D_B_normal
+        if self.opt.disc_for_normals:
+            self.loss_D_B_normal = self.backward_D_base(self.netD_B_normal, self.surf_normals(self.real_depth_A), self.surf_normals(self.fake_depth_A))
+    
     def backward_G(self):
         loss_A = 0.0
         loss_B = 0.0
 
-        self.loss_G_A = self.criterionGAN(self.netD_A_normal(self.surf_normals(self.fake_depth_B)), True) + self.criterionGAN(self.netD_A_depth(self.fake_depth_B), True)
-        self.loss_G_B = self.criterionGAN(self.netD_B_normal(self.surf_normals(self.fake_depth_A)), True) + self.criterionGAN(self.netD_B_depth(self.fake_depth_A), True) 
+        self.loss_G_A = self.criterionGAN(self.netD_A_depth(self.fake_depth_B), True)
+        self.loss_G_B = self.criterionGAN(self.netD_B_depth(self.fake_depth_A), True)
+        if self.opt.disc_for_normals:
+            self.loss_G_A = self.loss_G_A + self.criterionGAN(self.netD_A_normal(self.surf_normals(self.fake_depth_B)), True)
+            self.loss_G_B = self.loss_G_B + self.criterionGAN(self.netD_B_normal(self.surf_normals(self.fake_depth_A)), True)
         loss_A = loss_A + self.loss_G_A
         loss_B = loss_B + self.loss_G_B
         
@@ -145,17 +160,18 @@ class SemiCycleGANModel(BaseModel, nn.Module):
             else:
                 self.loss_depth_range_B = self.criterionDepthRange(self.real_depth_B, self.fake_depth_A, (self.fake_depth_A > -1.0)) * self.l_depth_B
             loss_B = loss_B + self.loss_depth_range_B
-        self.loss_G = loss_A + loss_B
-        self.loss_G.backward()
+        
+        loss_G = loss_A + loss_B
+        loss_G.backward()
         
     def optimize_param(self):
-        self.set_requires_grad([self.netD_A_depth,self.netD_A_normal, self.netD_B_depth, self.netD_B_normal], False)
+        self.set_requires_grad(self.disc, False)
         for _ in range(self.opt.num_iter_gen):
             self.forward()
             self.optimizer_G.zero_grad()
             self.backward_G()
             self.optimizer_G.step()
-        self.set_requires_grad([self.netD_A_depth,self.netD_A_normal, self.netD_B_depth, self.netD_B_normal], True)
+        self.set_requires_grad(self.disc, True)
         
         self.set_requires_grad([self.netG_A, self.netG_B], False)
         for j in range(self.opt.num_iter_dis):

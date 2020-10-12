@@ -8,6 +8,23 @@ import os
 class Visualizer():
     def __init__(self, opt):
         self.opt = opt
+        
+    def plot_validation(self, names, SAVE_PATH, domain='A', norm=False):
+        if domain == 'A':
+            scenes = ['scene0264_01_1600', 'scene0265_01_400', 'scene0262_00_1450', 'scene0088_01_500', 'scene0000_00_200']
+        else:
+            scenes = ['1066_13', '1137_7', '1203_3', '1273_6', '153_15']
+        fig, axes = plt.subplots(nrows=len(scenes), ncols=len(names)+1, figsize=(200,200))
+        fig.subplots_adjust(hspace=0.01, wspace=0.01)
+        for i,ax in enumerate(axes.flatten()):
+            ax.axis('off')
+        for i, scene in enumerate(scenes):
+            axes[i, 0].imshow(imageio.imread(os.path.join(SAVE_PATH, names[0], 'A',scene+'_depth.png')),cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance)
+            for j , name in enumerate(names):
+                if norm:
+                    axes[i,j+1].imshow(util.get_normal(imageio.imread(os.path.join(SAVE_PATH, name, 'A', scene+'_depth_fake.png'))))
+                else:
+                    axes[i,j+1].imshow(imageio.imread(os.path.join(SAVE_PATH, name, 'A', scene+'_depth_fake.png')),cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance)
     
     def plot_crop(self, img_dict, v_min, v_max, h_min, h_max):
         A_depth = util.tensor2im(img_dict['real_depth_A'], self.opt, isDepth=True)
@@ -64,7 +81,21 @@ class Visualizer():
             
             axes[2*i+1,0].imshow(B_imgs[i])
             axes[2*i+1,1].imshow(B_depth[i],cmap=plt.get_cmap('RdYlBu'))
-    def save_img(self,img_dict, path, model_name):
+    def save_img_metric(self, img_dict, path, model_name):
+        util.mkdirs(os.path.join(path, model_name, 'metrics', 'A2B'))
+        util.mkdirs(os.path.join(path, model_name, 'metrics', 'B2A'))
+        B_depth_fake = util.tensor2im(img_dict['fake_depth_B'], self.opt, isDepth=True)*1000
+        A_name = img_dict['name_A']
+        
+        A_depth_fake = util.tensor2im(img_dict['fake_depth_A'], self.opt, isDepth=True)*1000
+        B_name = img_dict['name_B']
+        for i in range(B_depth_fake.shape[0]):                       
+            imageio.imwrite(os.path.join(path, model_name, 'A2B', A_name[i]+'.png'), B_depth_fake[i].astype(np.uint16))
+            imageio.imwrite(os.path.join(path, model_name, 'B2A', B_name[i]+'.png'), A_depth_fake[i].astype(np.uint16))
+    
+    def save_img(self, img_dict, path, model_name):
+        util.mkdirs(os.path.join(path, model_name, 'val', 'A'))
+        util.mkdirs(os.path.join(path, model_name, 'val', 'B'))
         A_imgs = util.tensor2im(img_dict['real_img_A'], self.opt, isDepth=False)
         A_depth = util.tensor2im(img_dict['real_depth_A'], self.opt, isDepth=True)*1000
         B_depth_fake = util.tensor2im(img_dict['fake_depth_B'], self.opt, isDepth=True)*1000
@@ -75,18 +106,11 @@ class Visualizer():
         A_depth_fake = util.tensor2im(img_dict['fake_depth_A'], self.opt, isDepth=True)*1000
         B_name = img_dict['name_B']
         for i in range(A_imgs.shape[0]):
-#             np.save(os.path.join(path, model_name, 'A', A_name[i]+'_img'), A_imgs[i])
             imageio.imwrite(os.path.join(path, model_name, 'A', A_name[i]+'_img.png'), A_imgs[i])    
-#             np.save(os.path.join(path, model_name, 'A', A_name[i]+'_depth'), A_depth[i])
             imageio.imwrite(os.path.join(path, model_name, 'A', A_name[i]+'_depth.png'), A_depth[i].astype(np.uint16))                        
-#             np.save(os.path.join(path, model_name, 'A', A_name[i]+'_depth_fake'), B_depth_fake[i])
             imageio.imwrite(os.path.join(path, model_name, 'A', A_name[i]+'_depth_fake.png'), B_depth_fake[i].astype(np.uint16))
-            
-#             np.save(os.path.join(path, model_name, 'B', B_name[i]+'img'), B_imgs[i])
-            imageio.imwrite(os.path.join(path, model_name, 'B', B_name[i]+'img.png'), B_imgs[i])
-#             np.save(os.path.join(path, model_name, 'B', B_name[i]+'_depth'), B_depth[i])
+            imageio.imwrite(os.path.join(path, model_name, 'B', B_name[i]+'_img.png'), B_imgs[i])
             imageio.imwrite(os.path.join(path, model_name, 'B', B_name[i]+'_depth.png'), B_depth[i].astype(np.uint16))
-#             np.save(os.path.join(path, model_name, 'B', B_name[i]+'_depth_fake'), A_depth_fake[i])
             imageio.imwrite(os.path.join(path, model_name, 'B', B_name[i]+'_depth_fake.png'), A_depth_fake[i].astype(np.uint16))
     
     def plot_a2b(self, img_dict):
@@ -95,7 +119,10 @@ class Visualizer():
         Pred_depth = util.tensor2im(img_dict['fake_depth_B'], self.opt, isDepth=True)
         Orig_depth = util.tensor2im(img_dict['real_depth_B'], self.opt, isDepth=True)
         Adv_depth = util.tensor2im(img_dict['adv_depth_B'], self.opt, isDepth=True)
-        True_Hole = img_dict['mask'].squeeze(1).cpu().data.numpy()
+        if self.opt.isTrain:
+            True_Hole = img_dict['mask'].squeeze(1).cpu().data.numpy()
+        else:
+            True_Hole = np.zeros_like(Orig_depth)
         batch_size = Img.shape[0]
         n_pic = min(batch_size, self.opt.n_pic)
         n_row = n_pic

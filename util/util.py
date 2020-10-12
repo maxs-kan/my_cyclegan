@@ -10,6 +10,17 @@ import torch.nn as nn
 from torch.nn import functional as F
 import numpy as np
 
+def get_normal(depth):
+    norm = np.zeros(( depth.shape[0], depth.shape[1], 3))
+    dzdx = np.gradient(depth, 1, axis=0)
+    dzdy = np.gradient(depth, 1, axis=1)
+    norm[ :, :, 0] = -dzdx
+    norm[ :, :, 1] = -dzdy
+    norm[ :, :, 2] = np.ones_like(depth)
+    n = np.linalg.norm(norm, axis = 2, ord=2, keepdims=True)
+    norm = norm/n
+    return norm
+
 def logits_to_label(input):
     prob = F.softmax(input,dim=1)
     label = torch.argmax(prob, dim=1)

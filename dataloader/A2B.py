@@ -84,6 +84,7 @@ class A2BDataset(BaseDataset):
         bad_depth = (bad_depth - self.scale) / self.scale
         
         transform_list = []
+        transform_list.append(A.Resize(height=self.opt.load_size_h, width=self.opt.load_size_w, interpolation=4, p=1))
         if self.opt.isTrain:
             transform_list.append(A.RandomCrop(height=self.opt.crop_size, width=self.opt.crop_size, p=1))
             transform_list.append(A.HorizontalFlip(p=0.5))
