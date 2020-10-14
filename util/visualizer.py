@@ -19,7 +19,10 @@ class Visualizer():
         for i,ax in enumerate(axes.flatten()):
             ax.axis('off')
         for i, scene in enumerate(scenes):
-            axes[i, 0].imshow(imageio.imread(os.path.join(SAVE_PATH, names[0], 'A',scene+'_depth.png')),cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance)
+            if norm:
+                axes[i, 0].imshow(util.get_normal(imageio.imread(os.path.join(SAVE_PATH, names[0], 'A',scene+'_depth.png'))),cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance)
+            else:
+                axes[i, 0].imshow(imageio.imread(os.path.join(SAVE_PATH, names[0], 'A',scene+'_depth.png')),cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance)
             for j , name in enumerate(names):
                 if norm:
                     axes[i,j+1].imshow(util.get_normal(imageio.imread(os.path.join(SAVE_PATH, name, 'A', scene+'_depth_fake.png'))))
@@ -82,17 +85,23 @@ class Visualizer():
             axes[2*i+1,0].imshow(B_imgs[i])
             axes[2*i+1,1].imshow(B_depth[i],cmap=plt.get_cmap('RdYlBu'))
     def save_img_metric(self, img_dict, path, model_name):
-        util.mkdirs(os.path.join(path, model_name, 'metrics', 'A2B'))
-        util.mkdirs(os.path.join(path, model_name, 'metrics', 'B2A'))
+        util.mkdirs(os.path.join(path, model_name + '_metric', 'A2B', 'depth'))
+        util.mkdirs(os.path.join(path, model_name + 'metric', 'A2B', 'normal'))
+        util.mkdirs(os.path.join(path, model_name + 'metric', 'B2A', 'depth'))
+        util.mkdirs(os.path.join(path, model_name + 'metric', 'B2A', 'normal'))
         B_depth_fake = util.tensor2im(img_dict['fake_depth_B'], self.opt, isDepth=True)*1000
+#         B_normal_fake = util.get_normal_metric(B_depth_fake)
         A_name = img_dict['name_A']
         
         A_depth_fake = util.tensor2im(img_dict['fake_depth_A'], self.opt, isDepth=True)*1000
+#         A_normal_fake = util.get_normal_metric(A_depth_fake)
         B_name = img_dict['name_B']
         for i in range(B_depth_fake.shape[0]):                       
-            imageio.imwrite(os.path.join(path, model_name, 'A2B', A_name[i]+'.png'), B_depth_fake[i].astype(np.uint16))
-            imageio.imwrite(os.path.join(path, model_name, 'B2A', B_name[i]+'.png'), A_depth_fake[i].astype(np.uint16))
-    
+            imageio.imwrite(os.path.join(path, model_name + '_metric', 'A2B', 'depth', A_name[i]+'.png'), B_depth_fake[i].astype(np.uint16))
+            np.save(os.path.join(path, model_name +  '_metric', 'A2B', 'normal', A_name[i]+'.npy'), util.get_normal_metric(B_depth_fake[i]))
+#             imageio.imwrite(os.path.join(path, model_name, 'B2A', B_name[i]+'.png'), A_depth_fake[i].astype(np.uint16))
+#             np.save(os.path.join(path, model_name, 'B2A', 'normal', B_name[i]+'.npy'), util.get_normal_metric(A_depth_fake[i]))
+            
     def save_img(self, img_dict, path, model_name):
         util.mkdirs(os.path.join(path, model_name, 'val', 'A'))
         util.mkdirs(os.path.join(path, model_name, 'val', 'B'))
@@ -118,15 +127,15 @@ class Visualizer():
         Depth_bad = util.tensor2im(img_dict['real_depth_A'], self.opt, isDepth=True)
         Pred_depth = util.tensor2im(img_dict['fake_depth_B'], self.opt, isDepth=True)
         Orig_depth = util.tensor2im(img_dict['real_depth_B'], self.opt, isDepth=True)
-        Adv_depth = util.tensor2im(img_dict['adv_depth_B'], self.opt, isDepth=True)
-        if self.opt.isTrain:
-            True_Hole = img_dict['mask'].squeeze(1).cpu().data.numpy()
-        else:
-            True_Hole = np.zeros_like(Orig_depth)
+#         Adv_depth = util.tensor2im(img_dict['adv_depth_B'], self.opt, isDepth=True)
+#         if self.opt.isTrain:
+#             True_Hole = img_dict['mask'].squeeze(1).cpu().data.numpy()
+#         else:
+#             True_Hole = np.zeros_like(Orig_depth)
         batch_size = Img.shape[0]
         n_pic = min(batch_size, self.opt.n_pic)
         n_row = n_pic
-        n_col = 6
+        n_col = 4
         fig_size = (30,40)
         fig, axes = plt.subplots(nrows=n_row, ncols=n_col, figsize=fig_size)
         fig.subplots_adjust(hspace=0.0, wspace=0.1)
@@ -134,18 +143,18 @@ class Visualizer():
             ax.axis('off')
         for i in range(n_pic):
             axes[i,0].set_title('Img')
-            axes[i,1].set_title('Bad_depth')
-            axes[i,2].set_title('Mask')
-            axes[i,3].set_title('Pred_depth')
-            axes[i,4].set_title('Orig_depth')
-            axes[i,5].set_title('Adv_depth')
+            axes[i,1].set_title('A_depth')
+#             axes[i,2].set_title('Mask')
+            axes[i,2].set_title('A2B_depth')
+            axes[i,3].set_title('B_depth')
+#             axes[i,5].set_title('Adv_depth')
             
             axes[i,0].imshow(Img[i])
             axes[i,1].imshow(Depth_bad[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance/1000)
-            axes[i,2].imshow(True_Hole[i],cmap=plt.get_cmap('RdYlBu'))
-            axes[i,3].imshow(Pred_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance/1000)
-            axes[i,4].imshow(Orig_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance/1000)
-            axes[i,5].imshow(Adv_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance/1000)
+#             axes[i,2].imshow(True_Hole[i],cmap=plt.get_cmap('RdYlBu'))
+            axes[i,2].imshow(Pred_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance/1000)
+            axes[i,3].imshow(Orig_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance/1000)
+#             axes[i,5].imshow(Adv_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance/1000)
         return fig
     
     def plot_holes(self, img_dict):

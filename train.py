@@ -40,10 +40,7 @@ if __name__ == '__main__':
                 fig = vis.plot_img(model.get_current_vis())#vis.plot_img(model.get_current_vis())
                 wandb.log({"chart": fig}, step=global_iter)
                 plt.close(fig)
-#             if total_iters % opt.save_latest_freq == 0:   # cache our latest model every <save_latest_freq> iterations
-#                 print('saving the latest model (epoch %d, total_iters %d)' % (epoch, total_iters))
-#                 save_suffix = 'iter_%d' % total_iters if opt.save_by_iter else 'latest'
-#                 model.save_networks(save_suffix)
+
         if epoch % opt.save_epoch_freq == 0:              # cache our model every <save_epoch_freq> epochs
             print('saving the model at the end of epoch %d, iters %d' % (epoch, global_iter))
             model.save_net(epoch)

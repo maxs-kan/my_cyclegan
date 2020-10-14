@@ -18,7 +18,17 @@ def get_normal(depth):
     norm[ :, :, 1] = -dzdy
     norm[ :, :, 2] = np.ones_like(depth)
     n = np.linalg.norm(norm, axis = 2, ord=2, keepdims=True)
-    norm = norm/n
+    norm = norm/(n + 1e-15)
+    return norm
+
+def get_normal_metric(depth):
+    norm = np.zeros((2, depth.shape[0], depth.shape[1]))
+    dzdx = np.gradient(depth, 1, axis=0)
+    dzdy = np.gradient(depth, 1, axis=1)
+    norm[ 0, :, :] = -dzdx
+    norm[ 1, :, :] = -dzdy
+    n = np.linalg.norm(norm, axis = 0, ord=2, keepdims=True)
+    norm = norm/(n + 1e-15)
     return norm
 
 def logits_to_label(input):

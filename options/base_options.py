@@ -28,10 +28,11 @@ class BaseOptions():
         
         # model parameters
         parser.add_argument('--model', type=str, default='semi_cycle_gan', help='chooses which model to use. [semi_cycle_gan | A2B | holes_unet ]')
-        parser.add_argument('--old_generator', type=bool, default=False, help='use old version of building generator')
-        parser.add_argument('--disc_for_normals', type=bool, default=False, help='use old version of building generator')
-#         parser.add_argument('--attention', action='store_true', help='use attention')
-        parser.add_argument('--use_semantic', type=bool, default=False, help='use semantic')
+        parser.add_argument('--old_generator', action='store_true', default=False, help='use old version of building generator')
+        parser.add_argument('--disc_for_normals', action='store_true', default=False, help='use old version of building generator')
+#         parser.add_argument('--attention', action='store_true', default=False, help='use attention')
+        parser.add_argument('--use_semantic', action='store_true', default=False, help='use semantic')
+        
         parser.add_argument('--n_downsampling', type=int, default=3, help='# of downsamling')
         parser.add_argument('--input_nc_img', type=int, default=3, help='# of input image channels: 3 for RGB')
         parser.add_argument('--input_nc_depth', type=int, default=1, help='# of input depth channels')
@@ -42,19 +43,19 @@ class BaseOptions():
         parser.add_argument('--ndf', type=int, default=64, help='# of discrim filters in the first conv layer')
         parser.add_argument('--netD', type=str, default='n_layers', help='specify discriminator architecture [basic | n_layers | pixel]. The basic model is a 70x70 PatchGAN. n_layers allows you to specify the layers in the discriminator, basic = n_layers=3, pixel-3 conv layer, all PatchGAN')
         parser.add_argument('--n_layers_D', type=int, default=3, help='only used if netD==n_layers')
-        parser.add_argument('--netG', type=str, default='resnet_6blocks', help='specify generator architecture [resnet_9blocks | resnet_6blocks]')
+#         parser.add_argument('--netG', type=str, default='resnet_6blocks', help='specify generator architecture [resnet_9blocks | resnet_6blocks]')
         parser.add_argument('--n_blocks', type=int, default=9, help='# of res blocks')
         parser.add_argument('--norm', type=str, default='instance', help='instance normalization or batch normalization [instance | batch | none]')
         parser.add_argument('--upsampling_type', type=str, default='upconv', help='upsampling operation [upconv | uptranspose | transpose]')
         parser.add_argument('--init_type', type=str, default='normal', help='network initialization [normal | xavier | kaiming | orthogonal]')
 #         parser.add_argument('--init_std', type=float, default=0.02, help='std for normal initialization.')
-        parser.add_argument('--dropout', type=bool, default=True, help='dropout for the generator')
+        parser.add_argument('--dropout', action='store_true', default=False, help='dropout for the generator')
         parser.add_argument('--gan_mode', type=str, default='lsgan', help='the type of GAN objective. [vanilla| lsgan | wgangp]. vanilla GAN loss is the cross-entropy objective used in the original GAN paper.')
     
         # dataset parameters
         parser.add_argument('--dataset_mode', type=str, default='semi_cycle', help='chooses how datasets are loaded. [semi_cycle | A2B | holes')
         parser.add_argument('--max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.') 
-        parser.add_argument('--data_shuffle', type=bool, default=True, help='if true, takes images in order to make batches, otherwise takes them randomly')
+        parser.add_argument('--data_shuffle', action='store_true', default=False, help='if true, takes images in order to make batches, otherwise takes them randomly')
         parser.add_argument('--num_workers', default=4, type=int, help='# threads for loading data')
         parser.add_argument('--batch_size', type=int, default=5, help='input batch size')
 #         parser.add_argument('--pool_size', type=int, default=50, help='the size of image buffer that stores previously generated images')

@@ -18,9 +18,9 @@ class A2BModel(BaseModel, nn.Module):
             parser.add_argument('--num_iter_gen', type=int, default=1, help='iteration of gen per 1 iter of dis')
             parser.add_argument('--num_iter_dis', type=int, default=1, help='iteration of dis per 1 iter of gen')
             
-        parser.add_argument('--ngf_unet', type=int, default=64, help='# of gen filters in the first conv layer for image')
-        parser.add_argument('--norm_unet', type=str, default='batch', help='instance normalization or batch normalization [instance | batch | none]')
-        parser.add_argument('--dropout_unet', type=bool, default=False, help='dropout for the generator')
+#         parser.add_argument('--ngf_unet', type=int, default=64, help='# of gen filters in the first conv layer for image')
+#         parser.add_argument('--norm_unet', type=str, default='batch', help='instance normalization or batch normalization [instance | batch | none]')
+#         parser.add_argument('--dropout_unet', type=bool, default=False, help='dropout for the generator')
         return parser
     
     
@@ -28,9 +28,9 @@ class A2BModel(BaseModel, nn.Module):
         super(A2BModel, self).__init__(opt)
         if self.isTrain:
             self.loss_names = ['D_A_depth', 'G_A', 'depth_range_A']
-        self.visuals_names = ['real_img_A', 'real_depth_A', 'real_depth_B','fake_depth_B', 'adv_depth_B']
-        if self.isTrain:
-            self.visuals_names.append['mask']
+        self.visuals_names = ['real_img_A', 'real_depth_A', 'real_depth_B','fake_depth_B']
+#         if self.isTrain:
+#             self.visuals_names.append['mask']
         if self.isTrain:
             self.model_names = ['netG_A', 'netD_A']
         else: 
@@ -46,24 +46,22 @@ class A2BModel(BaseModel, nn.Module):
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
             self.l_depth_A = self.opt.l_depth_A_begin
-            self.holes_pred = network.define_Unet(opt)
-            self.load_holes_pred()
-            self.set_requires_grad([self.holes_pred], False)
-        
-            self.l_depth_A = self.opt.l_depth_A_begin
+#             self.holes_pred = network.define_Unet(opt)
+#             self.load_holes_pred()
+#             self.set_requires_grad([self.holes_pred], False)
     
     def set_input(self, input):
-        self.real_img_A = input['Image'].to(self.device)
-        self.real_depth_B = input['Depth'].to(self.device)
-        self.adv_depth_B = input['Adv_depth'].to(self.device)
-        if self.isTrain:
-            mask = self.holes_pred(self.real_img_A)
-            mask = torch.sigmoid(mask)
-            self.mask = mask > 0.5
-            real_depth_A = input['Bad_depth'].to(self.device)
-            self.real_depth_A = torch.where(self.mask, torch.ones_like(real_depth_A)*(-1.0), real_depth_A)
-        else: 
-            self.real_depth_A = input['Bad_depth'].to(self.device)
+        self.real_img_A = input['A_img'].to(self.device)
+        self.real_depth_A = input['A_depth'].to(self.device)
+        self.real_depth_B = input['B_depth'].to(self.device)
+#         if self.isTrain:
+#             mask = self.holes_pred(self.real_img_A)
+#             mask = torch.sigmoid(mask)
+#             self.mask = mask > 0.5
+#             real_depth_A = input['Bad_depth'].to(self.device)
+#             self.real_depth_A = torch.where(self.mask, torch.ones_like(real_depth_A)*(-1.0), real_depth_A)
+#         else: 
+#             self.real_depth_A = input['Bad_depth'].to(self.device)
 
     
     def forward(self):
@@ -77,7 +75,7 @@ class A2BModel(BaseModel, nn.Module):
         return loss_D
     
     def backward_D_A(self):
-        self.loss_D_A_depth = self.backward_D_base(self.netD_A, self.adv_depth_B, self.fake_depth_B)
+        self.loss_D_A_depth = self.backward_D_base(self.netD_A, self.real_depth_B, self.fake_depth_B)
     
     def backward_G(self):
         loss_A = 0.0
@@ -85,7 +83,7 @@ class A2BModel(BaseModel, nn.Module):
         loss_A = loss_A + self.loss_G_A
         
         if self.l_depth_A > 0 :
-            self.loss_depth_range_A = self.criterionDepthRange(self.real_depth_B, self.fake_depth_B, ~self.mask)* self.l_depth_A 
+            self.loss_depth_range_A = self.criterionDepthRange(self.real_depth_A, self.fake_depth_B, self.real_depth_A > -1)* self.l_depth_A 
             loss_A = loss_A + self.loss_depth_range_A
 
         self.loss_G = loss_A 

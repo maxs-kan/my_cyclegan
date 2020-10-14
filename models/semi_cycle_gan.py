@@ -34,7 +34,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
             if self.opt.use_semantic:
                 self.loss_names.append('rec_semantic_A')
             if self.opt.disc_for_normals:
-                self.loss_names.append(['D_A_normal', 'D_B_normal',])
+                self.loss_names.extend(['D_A_normal', 'D_B_normal',])
         
         self.visuals_names = ['real_img_A', 'real_depth_A',
                               'real_img_B', 'real_depth_B',
@@ -46,7 +46,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
         if self.isTrain:
             self.model_names = ['netG_A', 'netG_B', 'netD_A_depth', 'netD_B_depth']
             if self.opt.disc_for_normals:
-                self.model_names.append([ 'netD_A_normal', 'netD_B_normal'])
+                self.model_names.extend([ 'netD_A_normal', 'netD_B_normal'])
         else: 
             self.model_names = ['netG_A', 'netG_B']
         
@@ -64,7 +64,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
             if self.opt.disc_for_normals:
                 self.netD_A_normal = network.define_D(opt, input_type = 'normal')
                 self.netD_B_normal = network.define_D(opt, input_type = 'normal')
-                self.disc.append(self.netD_A_normal, self.netD_B_normal)
+                self.disc.extend([self.netD_A_normal, self.netD_B_normal])
 #             self.fake_A_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
 #             self.fake_B_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
             self.criterionGAN = network.GANLoss(opt.gan_mode).to(self.device)  # define GAN loss.
