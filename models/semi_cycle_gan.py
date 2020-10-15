@@ -6,15 +6,25 @@ from util.util import GaussianSmoothing
 from util import util
 import torch
 import torch.nn as nn
-
+'''
+Pool for previous img
+--------------------
+Weight decay =0.0001
+spectral norm disc
+Turn off dropout
+ngf = 64
+n_bloc=4
+n_dis=6
+Cycle loss on new holes?
+'''
 class SemiCycleGANModel(BaseModel, nn.Module):
     @staticmethod
     def modify_commandline_options(parser, is_train):
         if is_train:
-            parser.add_argument('--lambda_cycle_A_begin', type=float, default=1.0, help='weight for cycle loss (A -> B -> A)')
-            parser.add_argument('--lambda_cycle_A_end', type=float, default=1.0, help='weight for cycle loss (A -> B -> A)')
-            parser.add_argument('--lambda_identity', type=float, default=1.0, help='identical loss')
-            parser.add_argument('--lambda_reconstruction_semantic', type=float, default=1.0, help='weight for reconstruction loss')
+            parser.add_argument('--l_cycle_A_begin', type=float, default=1.0, help='weight for cycle loss (A -> B -> A)')
+            parser.add_argument('--l_cycle_A_end', type=float, default=1.0, help='weight for cycle loss (A -> B -> A)')
+            parser.add_argument('--l_identity', type=float, default=1.0, help='identical loss')
+            parser.add_argument('--l_reconstruction_semantic', type=float, default=1.0, help='weight for reconstruction loss')
             parser.add_argument('--l_depth_A_begin', type=float, default=1.0, help='start of depth range loss')
             parser.add_argument('--l_depth_B_begin', type=float, default=1.0, help='start of depth range loss')
             parser.add_argument('--l_depth_A_end', type=float, default=1.0, help='finish of depth range loss')
@@ -30,18 +40,26 @@ class SemiCycleGANModel(BaseModel, nn.Module):
         super(SemiCycleGANModel, self).__init__(opt)
         
         if self.isTrain:
-            self.loss_names = ['D_A_depth', 'D_B_depth', 'G_A', 'G_B', 'cycle_A', 'idt_A', 'idt_B', 'depth_range_A','depth_range_B']
+            self.loss_names = ['D_A_depth', 'D_B_depth', 'G_A', 'G_B', 'cycle_A']
             if self.opt.use_semantic:
                 self.loss_names.append('rec_semantic_A')
             if self.opt.disc_for_normals:
                 self.loss_names.extend(['D_A_normal', 'D_B_normal',])
-        
+            if self.opt.l_identity > 0 :
+                self.loss_names.extend(['idt_A', 'idt_B',])
+            if self.opt.l_depth_A_begin > 0:
+                self.loss_names.append('depth_range_A')
+            if self.opt.l_depth_B_begin > 0:
+                self.loss_names.append('depth_range_B')
+                
         self.visuals_names = ['real_img_A', 'real_depth_A',
                               'real_img_B', 'real_depth_B',
-                              'fake_depth_B', 'fake_depth_A', 'rec_depth_A', 'idt_A', 'idt_B', 'name_A', 'name_B']
-        if self.opt.use_semantic and self.isTrain:
-            self.visuals_names.append('real_semantic_A') 
-            self.visuals_names.append('rec_semantic_A')
+                              'fake_depth_B', 'fake_depth_A', 'rec_depth_A', 'name_A', 'name_B']
+        if self.isTrain:
+            if self.opt.use_semantic:
+                self.visuals_names.extend(['real_semantic_A', 'rec_semantic_A']) 
+            if self.opt.l_identity > 0:
+                self.visuals_names.extend(['idt_A', 'idt_B'])
         
         if self.isTrain:
             self.model_names = ['netG_A', 'netG_B', 'netD_A_depth', 'netD_B_depth']
@@ -84,7 +102,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
             self.gaus_blur = GaussianSmoothing(1, 7, 10, self.device)  #HYPERPARAM
             self.l_depth_A = self.opt.l_depth_A_begin
             self.l_depth_B = self.opt.l_depth_B_begin
-            self.l_cycle = self.opt.lambda_cycle_A_begin
+            self.l_cycle = self.opt.l_cycle_A_begin
     
     def set_input(self, input):
         self.name_A = input['A_name']
@@ -99,13 +117,15 @@ class SemiCycleGANModel(BaseModel, nn.Module):
     def forward(self):
         if self.opt.use_semantic and self.isTrain:
             self.fake_depth_B, self.rec_semantic_A = self.netG_A(self.real_depth_A, self.real_img_A, return_logits=True)
-            self.idt_A = self.netG_A(self.real_depth_B, self.real_img_B, return_logits=False)
         else:
             self.fake_depth_B = self.netG_A(self.real_depth_A, self.real_img_A)
-            self.idt_A = self.netG_A(self.real_depth_B, self.real_img_B)
         self.fake_depth_A = self.netG_B(self.real_depth_B)
-        self.rec_depth_A = self.netG_B(self.fake_depth_B) # Cycle  
-        self.idt_B = self.netG_B(self.real_depth_A)
+        self.rec_depth_A = self.netG_B(self.fake_depth_B)
+        
+        if self.isTrain:
+            if self.opt.l_identity > 0:
+                self.idt_A = self.netG_A(self.real_depth_B, self.real_img_B)
+                self.idt_B = self.netG_B(self.real_depth_A)
         
     def backward_D_base(self, netD, real, fake):
         pred_real = netD(real)
@@ -138,13 +158,16 @@ class SemiCycleGANModel(BaseModel, nn.Module):
         loss_B = loss_B + self.loss_G_B
         
         self.loss_cycle_A = self.criterionCycle(self.rec_depth_A, self.real_depth_A, (self.real_depth_A > -1.0))  * self.l_cycle           ###HYPERPARAM
-        self.loss_idt_A = self.criterionIdt(self.idt_A, self.real_depth_B) * self.opt.lambda_identity
-        loss_A = loss_A + self.loss_cycle_A + self.loss_idt_A
-        self.loss_idt_B = self.criterionIdt(self.idt_B, self.real_depth_A) * self.opt.lambda_identity
-        loss_B = loss_B + self.loss_idt_B    
+        loss_A = loss_A + self.loss_cycle_A
+        
+        if self.opt.l_identity > 0:
+            self.loss_idt_A = self.criterionIdt(self.idt_A, self.real_depth_B) * self.opt.l_identity
+            loss_A = loss_A + self.loss_idt_A
+            self.loss_idt_B = self.criterionIdt(self.idt_B, self.real_depth_A) * self.opt.l_identity
+            loss_B = loss_B + self.loss_idt_B    
         
         if self.opt.use_semantic:
-            self.loss_rec_semantic_A = self.criterionSemantic(self.rec_semantic_A, self.real_semantic_A) * self.opt.lambda_reconstruction_semantic
+            self.loss_rec_semantic_A = self.criterionSemantic(self.rec_semantic_A, self.real_semantic_A) * self.opt.l_reconstruction_semantic
             loss_A = loss_A + self.loss_rec_semantic_A
 
         if self.l_depth_A > 0 :
@@ -165,6 +188,16 @@ class SemiCycleGANModel(BaseModel, nn.Module):
         loss_G.backward()
         
     def optimize_param(self):
+        
+        self.set_requires_grad([self.netG_A, self.netG_B], False)
+        for _ in range(self.opt.num_iter_dis):
+            self.forward()
+            self.optimizer_D.zero_grad()
+            self.backward_D_A()
+            self.backward_D_B()
+            self.optimizer_D.step()
+        self.set_requires_grad([self.netG_A, self.netG_B], True)
+        
         self.set_requires_grad(self.disc, False)
         for _ in range(self.opt.num_iter_gen):
             self.forward()
@@ -173,21 +206,11 @@ class SemiCycleGANModel(BaseModel, nn.Module):
             self.optimizer_G.step()
         self.set_requires_grad(self.disc, True)
         
-        self.set_requires_grad([self.netG_A, self.netG_B], False)
-        for j in range(self.opt.num_iter_dis):
-            if j > 0:
-                self.forward()
-            self.optimizer_D.zero_grad()
-            self.backward_D_A()
-            self.backward_D_B()
-            self.optimizer_D.step()
-        self.set_requires_grad([self.netG_A, self.netG_B], True)
-        
     def update_loss_weight(self, global_iter):
         if global_iter > self.opt.l_depth_max_iter:
             self.l_depth_A = self.opt.l_depth_A_end
             self.l_depth_B = self.opt.l_depth_B_end
-            self.l_cycle = self.opt.lambda_cycle_A_end
+            self.l_cycle = self.opt.l_cycle_A_end
 
     def get_L1_loss(self):
         return network.MaskedL1Loss()(util.data_to_meters(self.real_depth_A, self.opt), util.data_to_meters(self.fake_depth_B, self.opt) , self.real_depth_A > -1.0).item()

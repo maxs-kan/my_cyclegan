@@ -466,6 +466,9 @@ class UnetSkipConnectionBlock(nn.Module):
 
 
 class Encoder(nn.Module):
+    '''
+    reflection pad
+    '''
     def __init__(self, input_nc, base_nc, norm_layer, use_bias,  opt):
         super(Encoder, self).__init__()
         model = [nn.Conv2d(input_nc, base_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='replicate', bias=use_bias),
@@ -512,7 +515,7 @@ class UpConv(nn.Module):
     def __init__(self,in_chanels, out_chanels, use_bias, opt):
         super(UpConv, self).__init__()
         self.resizeconv = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
+            nn.Upsample(scale_factor=2, mode='nearest'),
             nn.Conv2d(in_chanels, out_chanels, kernel_size=3, stride=1, padding=1, dilation=1, padding_mode='replicate', bias=use_bias)
         )
     def forward(self, x):
