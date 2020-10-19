@@ -25,10 +25,7 @@ if __name__ == '__main__':
             model.set_input(data)
             model.test()
             if opt.save_img:
-                if opt.phase == 'test':
-                    vis.save_img_metric(model.get_current_vis(), opt.img_dir, opt.name, opt.phase)
-                else:
-                    vis.save_img(model.get_current_vis(), opt.img_dir, opt.name, opt.phase)
+                vis.save_img_metric(model.get_current_vis(), opt.img_dir, opt.name, opt.phase)
             L1_loss.append(model.get_L1_loss())
             L1_loss_syn.append(model.get_L1_loss_syn())
             dif.append(model.get_dif())
@@ -50,3 +47,9 @@ if __name__ == '__main__':
         print(std_dif, 'std dif s2r')
         print(mean_dif_syn, 'mean dif s2r')
         print(std_dif_syn, 'std dif s2r')
+        
+    else:
+        for data in tqdm(dataset):
+            model.set_input(data)
+            model.test()
+            vis.save_img(model.get_current_vis(), opt.img_dir, opt.name, opt.phase)

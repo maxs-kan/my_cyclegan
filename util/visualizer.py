@@ -89,15 +89,22 @@ class Visualizer():
         util.mkdirs(os.path.join(path, model_name, phase, 'A2B', 'normal'))
         util.mkdirs(os.path.join(path, model_name, phase, 'B2A', 'depth'))
         util.mkdirs(os.path.join(path, model_name, phase, 'B2A', 'normal'))
+        util.mkdirs(os.path.join(path, model_name, phase, 'A2B2A', 'depth'))
+        util.mkdirs(os.path.join(path, model_name, phase, 'A2B2A', 'normal'))
+#         util.mkdirs(os.path.join(path, model_name, phase, 'B2A2B', 'depth'))
+#         util.mkdirs(os.path.join(path, model_name, phase, 'B2A2B', 'normal'))
         B_depth_fake = util.tensor2im(img_dict['fake_depth_B'], self.opt, isDepth=True)*1000
+        A_rec = util.tensor2im(img_dict['rec_depth_A'], self.opt, isDepth=True)*1000
         A_name = img_dict['name_A']
+        
         A_depth_fake = util.tensor2im(img_dict['fake_depth_A'], self.opt, isDepth=True)*1000
         B_name = img_dict['name_B']
         for i in range(B_depth_fake.shape[0]):                       
             imageio.imwrite(os.path.join(path, model_name, phase, 'A2B', 'depth', A_name[i]+'.png'), B_depth_fake[i].astype(np.uint16))
-            np.save(os.path.join(path, model_name, phase, 'A2B', 'normal', A_name[i]+'.npy'), util.get_normal_metric(B_depth_fake[i]))
+            imageio.imwrite(os.path.join(path, model_name, phase, 'A2B2A', 'depth', A_name[i]+'.png'), A_rec[i].astype(np.uint16))
+#             np.save(os.path.join(path, model_name, phase, 'A2B', 'normal', A_name[i]+'.npy'), util.get_normal_metric(B_depth_fake[i]))
             imageio.imwrite(os.path.join(path, model_name, phase, 'B2A', B_name[i]+'.png'), A_depth_fake[i].astype(np.uint16))
-            np.save(os.path.join(path, model_name, phase, 'B2A', 'normal', B_name[i]+'.npy'), util.get_normal_metric(A_depth_fake[i]))
+#             np.save(os.path.join(path, model_name, phase, 'B2A', 'normal', B_name[i]+'.npy'), util.get_normal_metric(A_depth_fake[i]))
             
     def save_img(self, img_dict, path, model_name, phase):
         util.mkdirs(os.path.join(path, model_name, phase, 'A'))
@@ -188,6 +195,7 @@ class Visualizer():
         A_depth_fake = util.tensor2im(img_dict['fake_depth_A'], self.opt, isDepth=True)
         if self.opt.isTrain:
             A_depth_rec = util.tensor2im(img_dict['rec_depth_A'], self.opt, isDepth=True)
+            B_depth_rec = util.tensor2im(img_dict['rec_depth_B'], self.opt, isDepth=True)
 #             B_idt = util.tensor2im(img_dict['idt_B'], self.opt, isDepth=True)
 #             A_idt = util.tensor2im(img_dict['idt_A'], self.opt, isDepth=True)
             if self.opt.use_semantic:
@@ -221,7 +229,7 @@ class Visualizer():
                 axes[2*i+1,0].set_title('Syn RGB')
                 axes[2*i+1,1].set_title('Syn Depth')
                 axes[2*i+1,2].set_title('S-R Depth')
-                axes[2*i+1,3].set_title('None')
+                axes[2*i+1,3].set_title('Cycle Depth B')
 #                 axes[2*i+1,4].set_title('G_r-s(Syn Depth)')
                 
                 if self.opt.use_semantic:
@@ -245,7 +253,7 @@ class Visualizer():
                 axes[2*i+1,0].imshow(B_imgs[i])
                 axes[2*i+1,1].imshow(B_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 axes[2*i+1,2].imshow(A_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-                axes[2*i+1,3].imshow(A_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i+1,3].imshow(B_depth_rec[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
 #                 axes[2*i+1,4].imshow(A_idt[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 
                 if self.opt.use_semantic:
