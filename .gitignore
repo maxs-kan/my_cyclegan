@@ -164,3 +164,4 @@ wandb
 checkpoints
 old_files
 
+*.pth
