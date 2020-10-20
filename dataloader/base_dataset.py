@@ -40,7 +40,7 @@ class BaseDataset(data.Dataset, ABC):
                     img = img[:,:,:3]
                 img = img.astype(np.float32)
 #                 img = (img-mean_i)/std_i
-                img = (img - 127.5) / 127.5
+                img = img / 127.5 - 1
                 return img
             else:
                 print(img.dtype)
