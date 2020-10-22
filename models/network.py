@@ -122,7 +122,7 @@ def init_net(net, init_type='normal', init_gain='relu', gpu_ids=[], param=None,)
     """
     if len(gpu_ids) > 0:
         assert(torch.cuda.is_available())
-        net.to(gpu_ids[0])
+        net.to('cuda:{}'.format(gpu_ids[0]))
         net = torch.nn.DataParallel(net, gpu_ids)  # multi-GPUs
     init_weights(net=net, init_type=init_type, init_gain=init_gain, param=param)
     return net
@@ -296,6 +296,17 @@ def cal_gradient_penalty(netD, real_data, fake_data, device, type='mixed', const
     else:
         return 0.0, None
 
+class MeanMatching(nn.Module):
+    def __init__(self):
+        super(MeanMatching, self).__init__()
+    
+    def forward(self, real, fake):
+        mean_real = torch.mean(real, dim=(2,3), keepdim = True)
+        mean_fake = torch.mean(fake, dim=(2,3), keepdim = True)
+        dif = mean_fake - mean_real
+        real = real + dif + torch.normal(mean=0., std=0.001, size=real.shape, device=real.device) #torch.normal(mean=dif, std=0.001)
+        fake = fake + torch.normal(mean=0., std=0.001, size=fake.shape, device=fake.device)
+        return real, fake
 class MaskedL1Loss(nn.Module):
     def __init__(self):
         super(MaskedL1Loss, self).__init__()

@@ -201,7 +201,11 @@ class Visualizer():
             if self.opt.use_semantic:
                 A_semantic = img_dict['real_semantic_A'].data.cpu().numpy()
                 A_semantic_pred = util.logits_to_label(img_dict['rec_semantic_A'])
-        
+            if self.opt.use_mean_matching:
+                B_noise_fake = util.tensor2im(img_dict['fake_noise_B'], self.opt, isDepth=True)
+                B_noise_real = util.tensor2im(img_dict['real_noise_B'], self.opt, isDepth=True)
+                A_noise_fake = util.tensor2im(img_dict['fake_noise_A'], self.opt, isDepth=True)
+                A_noise_real = util.tensor2im(img_dict['real_noise_A'], self.opt, isDepth=True)
         max_dist = self.opt.max_distance/1000
         batch_size = A_imgs.shape[0]
         if self.opt.isTrain:
@@ -210,7 +214,7 @@ class Visualizer():
                 n_col = 8
                 fig_size = (40,80)
             else:
-                n_col = 5
+                n_col = 7
                 fig_size = (30,60)
             n_row = 2 * n_pic
             fig, axes = plt.subplots(nrows=n_row, ncols=n_col, figsize=fig_size)
@@ -223,13 +227,17 @@ class Visualizer():
                 axes[2*i,0].set_title('Real RGB')
                 axes[2*i,1].set_title('Real Depth')
                 axes[2*i,2].set_title('R-S Depth')
-                axes[2*i,3].set_title('Cycle Depth')
+                axes[2*i,3].set_title('R-S Noise')
+                axes[2*i,4].set_title('S Noise')
+                axes[2*i,5].set_title('Cycle Depth')
 #                 axes[2*i,4].set_title('G_s-r(Real Depth)')
                 
                 axes[2*i+1,0].set_title('Syn RGB')
                 axes[2*i+1,1].set_title('Syn Depth')
                 axes[2*i+1,2].set_title('S-R Depth')
-                axes[2*i+1,3].set_title('Cycle Depth B')
+                axes[2*i+1,3].set_title('S-R Noise')
+                axes[2*i+1,4].set_title('R Noise')
+                axes[2*i+1,5].set_title('Cycle Depth B')
 #                 axes[2*i+1,4].set_title('G_r-s(Syn Depth)')
                 
                 if self.opt.use_semantic:
@@ -241,19 +249,23 @@ class Visualizer():
                     axes[2*i+1,6].set_title('None')
                     axes[2*i+1,7].set_title('Graph')
                 else:
-                    axes[2*i,4].set_title('Graph')
-                    axes[2*i+1,4].set_title('Graph')
+                    axes[2*i,6].set_title('Graph')
+                    axes[2*i+1,6].set_title('Graph')
                 
                 axes[2*i,0].imshow(A_imgs[i])
                 r_d = axes[2*i,1].imshow(A_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-                rs_d = axes[2*i,2].imshow(B_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-                axes[2*i,3].imshow(A_depth_rec[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i,2].imshow(B_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i,3].imshow(B_noise_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i,4].imshow(B_noise_real[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i,5].imshow(A_depth_rec[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
 #                 axes[2*i,4].imshow(B_idt[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 
                 axes[2*i+1,0].imshow(B_imgs[i])
                 axes[2*i+1,1].imshow(B_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 axes[2*i+1,2].imshow(A_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-                axes[2*i+1,3].imshow(B_depth_rec[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i+1,3].imshow(A_noise_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i+1,4].imshow(A_noise_real[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i+1,5].imshow(B_depth_rec[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
 #                 axes[2*i+1,4].imshow(A_idt[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 
                 if self.opt.use_semantic:
@@ -269,15 +281,14 @@ class Visualizer():
                     axes[2*i+1,7].plot(A_depth_fake[i][100], label = 'S-R Depth')
                     axes[2*i+1,7].legend()
                 else:
-                    axes[2*i,4].plot(A_depth[i][100], label = 'Real Depth')
-                    axes[2*i,4].plot(B_depth_fake[i][100], label = 'R-S Depth')
-                    axes[2*i,4].legend()
+                    axes[2*i,6].plot(A_depth[i][100], label = 'Real Depth')
+                    axes[2*i,6].plot(B_depth_fake[i][100], label = 'R-S Depth')
+                    axes[2*i,6].legend()
                     
-                    axes[2*i+1,4].plot(B_depth[i][100], label = 'Syn Depth')
-                    axes[2*i+1,4].plot(A_depth_fake[i][100], label = 'S-R Depth')
-                    axes[2*i+1,4].legend()
+                    axes[2*i+1,6].plot(B_depth[i][100], label = 'Syn Depth')
+                    axes[2*i+1,6].plot(A_depth_fake[i][100], label = 'S-R Depth')
+                    axes[2*i+1,6].legend()
                 fig.colorbar(r_d, ax=axes[2*i,1],fraction=0.046, pad=0.03)
-                fig.colorbar(rs_d, ax=axes[2*i,2],fraction=0.046, pad=0.03)
         else:
             plt.plot(A_depth[0][100], label = 'Real Depth')
             plt.plot(B_depth_fake[0][100], label = 'R-S Depth')
@@ -295,9 +306,8 @@ class Visualizer():
                 
                 axes[i,0].imshow(A_imgs[i])
                 r_d = axes[i,1].imshow(A_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-                rs_d = axes[i,2].imshow(B_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[i,2].imshow(B_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 fig.colorbar(r_d, ax=axes[i,1],fraction=0.046, pad=0.03)
-                fig.colorbar(rs_d, ax=axes[i,2],fraction=0.046, pad=0.03)
         return fig
 
 
