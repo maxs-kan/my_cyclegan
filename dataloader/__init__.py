@@ -51,7 +51,7 @@ class Dataset_Dataloader():
             batch_size=opt.batch_size,
             shuffle=opt.data_shuffle,
             num_workers=int(opt.num_workers),
-            pin_memory=True)
+            pin_memory=torch.cuda.is_available())
     def __len__(self):
         return min(len(self.dataset), self.opt.max_dataset_size)
     def __iter__(self):

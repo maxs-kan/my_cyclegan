@@ -20,8 +20,9 @@ class BaseDataset(data.Dataset, ABC):
     def add_extensions(self, ext_list):
         self.IMG_EXTENSIONS.extend(ext_list)    
     
-    def is_image_file(self, filename):
-        return any(filename.endswith(extension) for extension in self.IMG_EXTENSIONS)
+    def is_image_files(self, files):
+        for f in files:
+            assert any(f.endswith(extension) for extension in self.IMG_EXTENSIONS), 'not implemented file extntion type {}'.format(f.split('.')[1])
         
     def get_paths(self, dir):
         files = []
@@ -62,7 +63,6 @@ class BaseDataset(data.Dataset, ABC):
             raise AssertionError('Depth filetype')
     
     def read_data(self, path):
-        assert self.is_image_file(path), 'not implemented file extntion type {}'.format(path.split('.')[1])
         return imageio.imread(path)
     
     @abstractmethod

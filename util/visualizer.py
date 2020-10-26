@@ -195,7 +195,7 @@ class Visualizer():
         A_depth_fake = util.tensor2im(img_dict['fake_depth_A'], self.opt, isDepth=True)
         if self.opt.isTrain:
             A_depth_rec = util.tensor2im(img_dict['rec_depth_A'], self.opt, isDepth=True)
-            B_depth_rec = util.tensor2im(img_dict['rec_depth_B'], self.opt, isDepth=True)
+#             B_depth_rec = util.tensor2im(img_dict['rec_depth_B'], self.opt, isDepth=True)
 #             B_idt = util.tensor2im(img_dict['idt_B'], self.opt, isDepth=True)
 #             A_idt = util.tensor2im(img_dict['idt_A'], self.opt, isDepth=True)
             if self.opt.use_semantic:
@@ -229,7 +229,7 @@ class Visualizer():
                 axes[2*i,2].set_title('R-S Depth')
                 axes[2*i,3].set_title('R-S Noise')
                 axes[2*i,4].set_title('S Noise')
-                axes[2*i,5].set_title('Cycle Depth')
+                axes[2*i,5].set_title('Cycle Depth A')
 #                 axes[2*i,4].set_title('G_s-r(Real Depth)')
                 
                 axes[2*i+1,0].set_title('Syn RGB')
@@ -265,7 +265,7 @@ class Visualizer():
                 axes[2*i+1,2].imshow(A_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 axes[2*i+1,3].imshow(A_noise_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 axes[2*i+1,4].imshow(A_noise_real[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-                axes[2*i+1,5].imshow(B_depth_rec[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i+1,5].imshow(A_noise_real[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
 #                 axes[2*i+1,4].imshow(A_idt[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 
                 if self.opt.use_semantic:

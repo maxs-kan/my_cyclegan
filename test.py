@@ -10,6 +10,7 @@ import torch
 
 if __name__ == '__main__':
     opt = TestOptions().parse()
+    torch.cuda.set_device(opt.gpu_ids[0])
     dataset = create_dataset(opt)
     vis = Visualizer(opt)
     dataset_size = len(dataset)        
@@ -21,7 +22,7 @@ if __name__ == '__main__':
         L1_loss_syn = []
         dif = []
         dif_syn = []
-        for data in tqdm(dataset):
+        for data in tqdm(dataset.dataloader):
             model.set_input(data)
             model.test()
             if opt.save_img:
@@ -49,7 +50,7 @@ if __name__ == '__main__':
         print(std_dif_syn, 'std dif s2r')
         
     else:
-        for data in tqdm(dataset):
+        for data in tqdm(dataset.dataloader):
             model.set_input(data)
             model.test()
             vis.save_img(model.get_current_vis(), opt.img_dir, opt.name, opt.phase)

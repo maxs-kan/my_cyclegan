@@ -93,7 +93,7 @@ def init_weights(net, init_type='normal', init_gain='relu', param=None):
             if init_type == 'normal':
                 init.normal_(m.weight.data, mean=0.0, std=0.02)
             elif init_type == 'xavier':
-                init.xavier_normal_(m.weight.data, gain=init.calculate_gain(init_gain, param))
+                init.xavier_normal_(m.weight.data, gain=init.calculate_gain(init_gain, param))#
             elif init_type == 'kaiming':
                 init.kaiming_normal_(m.weight.data, a=0, mode='fan_in')
             elif init_type == 'orthogonal':
@@ -103,7 +103,7 @@ def init_weights(net, init_type='normal', init_gain='relu', param=None):
             if hasattr(m, 'bias') and m.bias is not None:
                 init.constant_(m.bias.data, 0.0)
         elif classname.find('BatchNorm2d') != -1:  # BatchNorm Layer's weight is not a matrix; only normal distribution applies.
-            init.normal_(m.weight.data, mean=1.0, std=0.01)
+            init.normal_(m.weight.data, mean=1.0, std=0.02)
             init.constant_(m.bias.data, 0.0)
 
     print('initialize network with %s' % init_type)
@@ -122,8 +122,8 @@ def init_net(net, init_type='normal', init_gain='relu', gpu_ids=[], param=None,)
     """
     if len(gpu_ids) > 0:
         assert(torch.cuda.is_available())
-        net.to('cuda:{}'.format(gpu_ids[0]))
-        net = torch.nn.DataParallel(net, gpu_ids)  # multi-GPUs
+#         net.to('cuda:{}'.format(gpu_ids[0]))
+        net = torch.nn.DataParallel(net, gpu_ids).cuda()  # multi-GPUs
     init_weights(net=net, init_type=init_type, init_gain=init_gain, param=param)
     return net
 
@@ -301,25 +301,27 @@ class MeanMatching(nn.Module):
         super(MeanMatching, self).__init__()
     
     def forward(self, real, fake):
-        mean_real = torch.mean(real, dim=(2,3), keepdim = True)
-        mean_fake = torch.mean(fake, dim=(2,3), keepdim = True)
-        dif = mean_fake - mean_real
-        real = real + dif + torch.normal(mean=0., std=0.001, size=real.shape, device=real.device) #torch.normal(mean=dif, std=0.001)
-        fake = fake + torch.normal(mean=0., std=0.001, size=fake.shape, device=fake.device)
+        mask_real = real > -1.0
+        mask_fake = fake > -1.0
+        mean_real = torch.sum(real, dim=(2,3), keepdim=True) / (torch.sum(mask_real, dim=(2,3), keepdim=True) + 1e-15)
+        mean_fake = torch.sum(fake, dim=(2,3), keepdim=True) / (torch.sum(mask_fake, dim=(2,3), keepdim=True) + 1e-15)
+        dif = (mean_real - mean_fake) * mask_fake
+        fake = torch.clamp(fake + dif, -1.0, 1.0) #+ torch.normal(mean=0., std=0.001, size=real.shape, device=real.device) #torch.normal(mean=dif, std=0.001)
+        #fake = fake + torch.normal(mean=0., std=0.001, size=fake.shape, device=fake.device)
         return real, fake
 class MaskedL1Loss(nn.Module):
     def __init__(self):
         super(MaskedL1Loss, self).__init__()
     def forward(self, x, y, mask):
         assert mask.dtype == torch.bool, 'mask shold be bool'
-        return torch.sum(torch.mul(torch.abs(y-x), mask)) / mask.sum()
+        return torch.sum(torch.mul(torch.abs(y-x), mask)) / (mask.sum() + 1e-15)
     
 class MaskedLoss(nn.Module):
     def __init__(self):
         super(MaskedLoss, self).__init__()
     def forward(self, x, y, mask):
         assert mask.dtype == torch.bool, 'mask shold be bool'
-        return torch.sum(torch.mul(y-x, mask)) / mask.sum()
+        return torch.sum(torch.mul(y-x, mask)) / (mask.sum() + 1e-15)
     
 class SurfaceNormals(nn.Module):
     def __init__(self):
@@ -518,7 +520,7 @@ class Decoder(nn.Module):
 class ConvTranspose(nn.Module):
     def __init__(self,in_chanels, out_chanels, use_bias, opt):
         super(ConvTranspose, self).__init__()
-        self.transposeconv = nn.ConvTranspose2d(in_chanels, out_chanels, kernel_size=2, stride=2, padding=0, output_padding=0, dilation=1, padding_mode='zeros', bias=use_bias)
+        self.transposeconv = nn.ConvTranspose2d(in_chanels, out_chanels, kernel_size=4, stride=2, padding=1, output_padding=0, dilation=1, padding_mode='zeros', bias=use_bias)  #kernel_size=3, stride=2, padding=1, output_padding=1,
     def forward(self, x):
         return self.transposeconv(x)
     

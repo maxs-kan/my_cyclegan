@@ -1,5 +1,4 @@
 from dataloader.base_dataset import BaseDataset
-import random
 import os
 import numpy as np
 import albumentations as A
@@ -33,11 +32,14 @@ class SemiCycleDataset(BaseDataset):
         if self.opt.use_semantic and self.opt.isTrain:
             self.A_semantic = self.get_paths(self.dir_A_semantic)
             assert (len(self.A_imgs) == len(self.A_depths) == len(self.A_semantic)), 'not pair img depth semantic'
+            self.is_image_files(self.A_imgs + self.A_depths + self.A_semantic)
         else:
             assert (len(self.A_imgs) == len(self.A_depths)), 'not pair img depth' 
+            self.is_image_files(self.A_imgs + self.A_depths)
         self.B_imgs = self.get_paths(self.dir_B_img)
         self.B_depths = self.get_paths(self.dir_B_depth)
         assert (len(self.B_imgs) == len(self.B_depths)), 'not pair img depth'
+        self.is_image_files(self.B_imgs + self.B_depths)
         
         self.A_size = len(self.A_imgs)
         self.B_size = len(self.B_imgs)
@@ -58,7 +60,7 @@ class SemiCycleDataset(BaseDataset):
         if self.opt.use_semantic and self.opt.isTrain:
             A_semantic_path = self.A_semantic[index]
         if self.opt.isTrain or self.A_size != self.B_size:
-            index_B = random.randint(0, self.B_size - 1)
+            index_B = torch.randint(low=0, high=self.B_size, size=(1,)).item()
         else:
             index_B = index
         B_img_path = self.B_imgs[index_B]

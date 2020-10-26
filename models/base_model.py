@@ -8,7 +8,7 @@ class BaseModel(ABC, torch.nn.Module):
         super(BaseModel, self).__init__()
         self.opt = opt
         self.isTrain = opt.isTrain
-        self.device = torch.device('cuda:{}'.format(opt.gpu_ids[0]))                            ###pytorch settings
+        self.device = torch.device('cuda:{}'.format(torch.cuda.current_device()) if torch.cuda.is_available else 'cpu')
         self.save_dir = os.path.join(opt.checkpoints_dir, opt.name) 
         self.loss_names = []
         self.model_names = []
@@ -124,6 +124,23 @@ class BaseModel(ABC, torch.nn.Module):
             print('[Network %s] Total number of parameters : %.3f M' % (name, num_params / 1e6))
         print('-----------------------------------------------')
 
+    def check_nan(self, nets):
+        if not isinstance(nets, list):
+            nets = [nets]
+        for net in nets:
+            if net is not None:
+                for param in net.parameters():
+                    if torch.isnan(param).any():
+                        raise RuntimeError('NaN in param', net)
+    
+    def zero_grad(self, nets):
+        if not isinstance(nets, list):
+            nets = [nets]
+        for net in nets:
+            if net is not None:
+                for param in net.parameters():
+                    param.grad = None
+    
     def set_requires_grad(self, nets, requires_grad=False):
         """Set requies_grad=Fasle for all the networks to avoid unnecessary computations
         Parameters:
