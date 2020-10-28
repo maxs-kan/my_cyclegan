@@ -13,7 +13,7 @@ class BaseDataset(data.Dataset, ABC):
         self.root = opt.dataroot
         self.scale = self.opt.max_distance / 2
         self.IMG_EXTENSIONS = []
-        self.transforms = [A.Resize(height=self.opt.load_size_h, width=self.opt.load_size_w, interpolation=0, p=1)]
+        self.transforms = [A.Resize(height=self.opt.load_size_h, width=self.opt.load_size_w, interpolation=0, p=4)]
         self.dir_A = os.path.join(self.root, self.opt.phase + 'A')
         self.dir_B = os.path.join(self.root, self.opt.phase + 'B')
     
