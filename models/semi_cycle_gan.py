@@ -103,10 +103,10 @@ class SemiCycleGANModel(BaseModel, nn.Module):
 #             self.fake_A_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
 #             self.fake_B_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
             self.criterionGAN = network.GANLoss(self.opt.gan_mode).to(self.device)  # define GAN loss.
-            self.criterionCycle_A = network.MaskedL1Loss().to(self.device) 
-            self.criterionCycle_B = nn.L1Loss().to(self.device) 
-            self.criterionIdt = nn.L1Loss().to(self.device) 
-            self.criterionDepthRange = network.MaskedL1Loss().to(self.device) 
+            self.criterionCycle_A = network.MaskedL1Loss()
+            self.criterionCycle_B = nn.L1Loss()
+            self.criterionIdt = nn.L1Loss()
+            self.criterionDepthRange = network.MaskedL1Loss()
             if self.opt.use_semantic:
 #                 weight_class = torch.tensor([3.0]).to(self.device)   #HYPERPARAM
                 self.criterionSemantic = nn.CrossEntropyLoss().to(self.device)
@@ -114,13 +114,13 @@ class SemiCycleGANModel(BaseModel, nn.Module):
             self.optimizer_D = torch.optim.Adam(itertools.chain(*[m.parameters() for m in self.disc]), lr=opt.lr_D, betas=(opt.beta1, 0.999))
             self.optimizers.extend([self.optimizer_G, self.optimizer_D])
             
-            self.surf_normals = network.SurfaceNormals().to(self.device) 
+            self.surf_normals = network.SurfaceNormals()
             self.gaus_blur = GaussianSmoothing(1, 7, 10, self.device)  #HYPERPARAM
             self.l_depth_A = self.opt.l_depth_A_begin
             self.l_depth_B = self.opt.l_depth_B_begin
             self.l_cycle_A = self.opt.l_cycle_A_begin
             self.l_cycle_B = self.opt.l_cycle_B_begin
-            self.mean_matching = network.MeanMatching().to(self.device) 
+            self.mean_matching = network.MeanMatching() 
             
 #             self.mu_shift = (self.opt.mean_B - self.opt.mean_A) / (self.opt.max_distance / 2)
 #             self.std_shift = (self.opt.std_B - self.opt.std_A) / (self.opt.max_distance / 2) 
@@ -128,12 +128,12 @@ class SemiCycleGANModel(BaseModel, nn.Module):
     def set_input(self, input):
         self.name_A = input['A_name']
         self.name_B = input['B_name']
-        self.real_img_A = input['A_img'].to(self.device, non_blocking=torch.cuda.is_available())
-        self.real_depth_A = input['A_depth'].to(self.device, non_blocking=torch.cuda.is_available())
+        self.real_img_A = input['A_img'].to(self.device) #, non_blocking=torch.cuda.is_available()
+        self.real_depth_A = input['A_depth'].to(self.device)
         if self.opt.use_semantic and self.isTrain:
-            self.real_semantic_A = input['A_semantic'].to(self.device, non_blocking=torch.cuda.is_available())
-        self.real_img_B = input['B_img'].to(self.device, non_blocking=torch.cuda.is_available())
-        self.real_depth_B = input['B_depth'].to(self.device, non_blocking=torch.cuda.is_available())
+            self.real_semantic_A = input['A_semantic'].to(self.device)
+        self.real_img_B = input['B_img'].to(self.device)
+        self.real_depth_B = input['B_depth'].to(self.device)
     
     def forward(self):
         if self.opt.use_semantic and self.isTrain:
@@ -160,31 +160,31 @@ class SemiCycleGANModel(BaseModel, nn.Module):
     
     def backward_D_A(self):
 #         fake_B = self.fake_B_pool
-        if self.opt.use_mean_matching:
-            self.real_noise_B, self.fake_noise_B = self.mean_matching(self.real_depth_B, self.fake_depth_B)
-            self.loss_D_A_depth = self.backward_D_base(self.netD_A_depth, self.real_noise_B, self.fake_noise_B)
-        else:
-            self.loss_D_A_depth = self.backward_D_base(self.netD_A_depth, self.real_depth_B, self.fake_depth_B)
+#         if self.opt.use_mean_matching:
+#             self.real_noise_B, self.fake_noise_B = self.mean_matching(self.real_depth_B, self.fake_depth_B)
+#             self.loss_D_A_depth = self.backward_D_base(self.netD_A_depth, self.real_noise_B, self.fake_noise_B)
+#         else:
+        self.loss_D_A_depth = self.backward_D_base(self.netD_A_depth, self.real_depth_B, self.fake_depth_B)
         if self.opt.disc_for_normals:
             self.loss_D_A_normal = self.backward_D_base(self.netD_A_normal, self.surf_normals(self.real_depth_B), self.surf_normals(self.fake_depth_B))
     
     def backward_D_B(self):
-        if self.opt.use_mean_matching:
-            self.real_noise_A, self.fake_noise_A = self.mean_matching(self.real_depth_A, self.fake_depth_A)
-            self.loss_D_B_depth = self.backward_D_base(self.netD_B_depth, self.real_noise_A, self.fake_noise_A )
-        else:
-            self.loss_D_B_depth = self.backward_D_base(self.netD_B_depth, self.real_depth_A, self.fake_depth_A )
+#         if self.opt.use_mean_matching:
+#             self.real_noise_A, self.fake_noise_A = self.mean_matching(self.real_depth_A, self.fake_depth_A)
+#             self.loss_D_B_depth = self.backward_D_base(self.netD_B_depth, self.real_noise_A, self.fake_noise_A )
+#         else:
+        self.loss_D_B_depth = self.backward_D_base(self.netD_B_depth, self.real_depth_A, self.fake_depth_A )
         if self.opt.disc_for_normals:
             self.loss_D_B_normal = self.backward_D_base(self.netD_B_normal, self.surf_normals(self.real_depth_A), self.surf_normals(self.fake_depth_A))
     
     def backward_G(self):
         loss_A = 0.0
         loss_B = 0.0
-        self.loss_G_A = 0.5 * self.criterionGAN(self.netD_A_depth(self.fake_depth_B), True)
-        self.loss_G_B = 0.5 * self.criterionGAN(self.netD_B_depth(self.fake_depth_A), True)
+        self.loss_G_A = self.criterionGAN(self.netD_A_depth(self.fake_depth_B), True)
+        self.loss_G_B = self.criterionGAN(self.netD_B_depth(self.fake_depth_A), True)
         if self.opt.disc_for_normals:
-            self.loss_G_A = self.loss_G_A + 0.5 * self.criterionGAN(self.netD_A_normal(self.surf_normals(self.fake_depth_B)), True)
-            self.loss_G_B = self.loss_G_B + 0.5 * self.criterionGAN(self.netD_B_normal(self.surf_normals(self.fake_depth_A)), True)
+            self.loss_G_A = self.loss_G_A + self.criterionGAN(self.netD_A_normal(self.surf_normals(self.fake_depth_B)), True)
+            self.loss_G_B = self.loss_G_B + self.criterionGAN(self.netD_B_normal(self.surf_normals(self.fake_depth_A)), True)
         loss_A = loss_A + self.loss_G_A
         loss_B = loss_B + self.loss_G_B
         
@@ -222,26 +222,26 @@ class SemiCycleGANModel(BaseModel, nn.Module):
         loss_G.backward()
         
     def optimize_param(self):
-        
-        self.set_requires_grad([self.netG_A, self.netG_B], False)
-        for _ in range(self.opt.num_iter_dis):
-            self.forward()
-#             self.optimizer_D.zero_grad()
-            self.zero_grad(self.disc)
-            self.backward_D_A()
-            self.backward_D_B()
-            self.optimizer_D.step()
-        self.set_requires_grad([self.netG_A, self.netG_B], True)
-        
         self.set_requires_grad(self.disc, False)
         for _ in range(self.opt.num_iter_gen):
             self.forward()
-#             self.optimizer_G.zero_grad()
-            self.zero_grad([self.netG_A, self.netG_B])
+            self.optimizer_G.zero_grad()
+#             self.zero_grad([self.netG_A, self.netG_B])
             self.backward_G()
             self.optimizer_G.step()
         self.set_requires_grad(self.disc, True)
         
+        self.set_requires_grad([self.netG_A, self.netG_B], False)
+        for j in range(self.opt.num_iter_dis):
+            if j > 0:
+                self.forward()
+            self.optimizer_D.zero_grad()
+#             self.zero_grad(self.disc)
+            self.backward_D_A()
+            self.backward_D_B()
+            self.optimizer_D.step()
+        self.set_requires_grad([self.netG_A, self.netG_B], True)
+                
     def update_loss_weight(self, global_iter):
         if global_iter > self.opt.l_depth_max_iter:
             self.l_depth_A = self.opt.l_depth_A_end

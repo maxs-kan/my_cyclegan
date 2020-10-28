@@ -196,8 +196,8 @@ class Visualizer():
         if self.opt.isTrain:
             A_depth_rec = util.tensor2im(img_dict['rec_depth_A'], self.opt, isDepth=True)
 #             B_depth_rec = util.tensor2im(img_dict['rec_depth_B'], self.opt, isDepth=True)
-#             B_idt = util.tensor2im(img_dict['idt_B'], self.opt, isDepth=True)
-#             A_idt = util.tensor2im(img_dict['idt_A'], self.opt, isDepth=True)
+            B_idt = util.tensor2im(img_dict['idt_B'], self.opt, isDepth=True)
+            A_idt = util.tensor2im(img_dict['idt_A'], self.opt, isDepth=True)
             if self.opt.use_semantic:
                 A_semantic = img_dict['real_semantic_A'].data.cpu().numpy()
                 A_semantic_pred = util.logits_to_label(img_dict['rec_semantic_A'])
@@ -255,17 +255,17 @@ class Visualizer():
                 axes[2*i,0].imshow(A_imgs[i])
                 r_d = axes[2*i,1].imshow(A_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 axes[2*i,2].imshow(B_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-                axes[2*i,3].imshow(B_noise_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-                axes[2*i,4].imshow(B_noise_real[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i,3].imshow(B_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i,4].imshow(B_idt[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 axes[2*i,5].imshow(A_depth_rec[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
 #                 axes[2*i,4].imshow(B_idt[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 
                 axes[2*i+1,0].imshow(B_imgs[i])
                 axes[2*i+1,1].imshow(B_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 axes[2*i+1,2].imshow(A_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-                axes[2*i+1,3].imshow(A_noise_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-                axes[2*i+1,4].imshow(A_noise_real[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-                axes[2*i+1,5].imshow(A_noise_real[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i+1,3].imshow(A_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i+1,4].imshow(A_idt[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i+1,5].imshow(A_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
 #                 axes[2*i+1,4].imshow(A_idt[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 
                 if self.opt.use_semantic:
