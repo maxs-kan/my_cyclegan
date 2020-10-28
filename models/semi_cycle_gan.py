@@ -173,7 +173,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
 #             self.real_noise_A, self.fake_noise_A = self.mean_matching(self.real_depth_A, self.fake_depth_A)
 #             self.loss_D_B_depth = self.backward_D_base(self.netD_B_depth, self.real_noise_A, self.fake_noise_A )
 #         else:
-        self.loss_D_B_depth = self.backward_D_base(self.netD_B_depth, self.real_depth_A, self.fake_depth_A )
+        self.loss_D_B_depth = self.backward_D_base(self.netD_B_depth, self.real_depth_A, self.fake_depth_A)
         if self.opt.disc_for_normals:
             self.loss_D_B_normal = self.backward_D_base(self.netD_B_normal, self.surf_normals(self.real_depth_A), self.surf_normals(self.fake_depth_A))
     
