@@ -14,6 +14,7 @@ class BaseModel(ABC, torch.nn.Module):
         self.model_names = []
         self.visuals_names = []
         self.optimizers = []
+        self.opt_names = ['optimizer_G', 'optimizer_D']
 #         self.image_paths = []
         self.metric = 0    # validation loss plateau sheduler
     
@@ -37,6 +38,12 @@ class BaseModel(ABC, torch.nn.Module):
             load_suffix = 'iter_%d' % self.opt.load_iter if self.opt.load_iter > 0 else self.opt.load_epoch
             self.load_networks(load_suffix)
         self.print_networks()
+    
+    def train_mode(self):
+        for name in self.model_names:
+            assert isinstance(name, str), 'model_names  must be string'
+            net = getattr(self, name)
+            net.train()
     
     def eval(self):
         for name in self.model_names:
@@ -73,18 +80,26 @@ class BaseModel(ABC, torch.nn.Module):
         return loss_dict
     
     def save_net(self, epoch):
+        state_dict = {}
+        save_fname = '%s.pt' % (epoch)
+        save_path = os.path.join(self.save_dir, save_fname)
         for name in self.model_names:
             assert isinstance(name, str), 'name must be str'
-            save_fname = '%s_%s.pth' % (epoch, name)
-            save_path = os.path.join(self.save_dir, save_fname)
-            net = getattr(self, name)
-                
+            net = getattr(self, name) 
             if len(self.opt.gpu_ids) > 0 and torch.cuda.is_available():
-                torch.save(net.module.cpu().state_dict(), save_path)
-                net.cuda(self.opt.gpu_ids[0])                             ### WHY NEEDED
-            else: 
-                torch.save(net.cpu().state_dict(), save_path)               
-    
+                state_dict[name] = net.module.cpu().state_dict()
+                net.cuda()                             
+            elif torch.cuda.is_available():
+                state_dict[name] = net.cpu().state_dict()
+                net.cuda()
+            else:
+                state_dict[name] = net.state_dict()
+        for name in self.opt_names:
+            assert isinstance(name, str), 'name must be str'
+            opt = getattr(self, name)
+            state_dict[name] = opt.state_dict()
+        torch.save(state_dict, save_path)
+                
     def load_holes_pred(self):
         load_filename = 'last_Unet.pth'
         load_path = os.path.join(self.opt.checkpoints_dir, 'holes', load_filename)
@@ -98,19 +113,25 @@ class BaseModel(ABC, torch.nn.Module):
         net.load_state_dict(state_dict)
     
     def load_networks(self, epoch):
+        load_filename = '%s.pt' % (epoch)
+        load_path = os.path.join(self.save_dir, load_filename)
+        checkpoint = torch.load(load_path, map_location=self.device)
         for name in self.model_names:
             assert isinstance(name, str), 'model name must be str'
-            load_filename = '%s_%s.pth' % (epoch, name)
-            load_path = os.path.join(self.save_dir, load_filename)
             net = getattr(self, name)
             if isinstance(net, torch.nn.DataParallel):
                 net = net.module
             print('loading the model from %s' % load_path)
-            state_dict = torch.load(load_path, map_location=self.device)
+            state_dict = checkpoint[name]
             if hasattr(state_dict, '_metadata'):
                 del state_dict._metadata
             net.load_state_dict(state_dict)
-
+        for name in self.opt_names:
+            assert isinstance(name, str), 'model name must be str'
+            opt = getattr(self, name)
+            print('loading the optimizer from %s' % load_path)
+            opt.load_state_dict(checkpoint[name])
+    
     def print_networks(self):
         print('---------- Networks initialized -------------')
         for name in self.model_names:

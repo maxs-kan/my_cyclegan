@@ -13,7 +13,7 @@ import os
 
 
 if __name__ == '__main__':
-    seed_value = 42
+    seed_value = 101
     os.environ['PYTHONHASHSEED']=str(seed_value)
     torch.manual_seed(seed_value)
     random.seed(seed_value)
@@ -33,9 +33,9 @@ if __name__ == '__main__':
     print('The number of training images = {}'.format(dataset_size))
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup()
+    model.train_mode()
     wandb.watch(model)
     global_iter = 0
-    
     for epoch in range(opt.epoch_count, opt.n_epochs + opt.n_epochs_decay + 1): 
         epoch_start_time = time.time()
         for i, data in enumerate(dataset):
