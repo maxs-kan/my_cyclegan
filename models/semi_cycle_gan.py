@@ -109,7 +109,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
             self.criterionDepthRange = network.MaskedL1Loss()
             if self.opt.use_semantic:
 #                 weight_class = torch.tensor([3.0]).to(self.device)   #HYPERPARAM
-                self.criterionSemantic = nn.CrossEntropyLoss().to(self.device)
+                self.criterionSemantic = nn.CrossEntropyLoss()
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr_G, betas=(opt.beta1, 0.999))
             self.optimizer_D = torch.optim.Adam(itertools.chain(*[m.parameters() for m in self.disc]), lr=opt.lr_D, betas=(opt.beta1, 0.999))
             self.optimizers.extend([self.optimizer_G, self.optimizer_D])
