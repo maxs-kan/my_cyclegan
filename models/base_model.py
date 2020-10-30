@@ -126,11 +126,12 @@ class BaseModel(ABC, torch.nn.Module):
             if hasattr(state_dict, '_metadata'):
                 del state_dict._metadata
             net.load_state_dict(state_dict)
-        for name in self.opt_names:
-            assert isinstance(name, str), 'model name must be str'
-            opt = getattr(self, name)
-            print('loading the optimizer from %s' % load_path)
-            opt.load_state_dict(checkpoint[name])
+        if self.isTrain:
+            for name in self.opt_names:
+                assert isinstance(name, str), 'model name must be str'
+                opt = getattr(self, name)
+                print('loading the optimizer from %s' % load_path)
+                opt.load_state_dict(checkpoint[name])
     
     def print_networks(self):
         print('---------- Networks initialized -------------')
