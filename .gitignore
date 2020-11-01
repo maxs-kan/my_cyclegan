@@ -165,3 +165,4 @@ checkpoints
 old_files
 
 *.pth
+inference_semi.ipynb

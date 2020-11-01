@@ -12,16 +12,17 @@ Pool for previous img
 --------------------
 Weight decay =0.0001
 spectral norm disc
-Turn off dropout
 ngf = 64
 n_bloc=4
 n_dis=6
 Cycle loss on new holes?
 normalize norm?
-clip depth + shift
+num iter gen on new pictures?
+identical and cycle on same pic?
 how add normal loss
 '''
 class SemiCycleGANModel(BaseModel, nn.Module):
+    
     @staticmethod
     def modify_commandline_options(parser, is_train):
         if is_train:
@@ -42,14 +43,11 @@ class SemiCycleGANModel(BaseModel, nn.Module):
 #             parser.add_argument('--mean_A', type=float, default=1680.1208394737955, help='mean of mean depth in A')
 #             parser.add_argument('--std_A', type=float, default=487.0543836544621, help='std of mean depth in A')
 #             parser.add_argument('--mean_B', type=float, default=2781.0011373752295, help='mean of mean depth in B')
-#             parser.add_argument('--std_B', type=float, default=780.4723869231325, help='std of mean depth in B')
-            
+#             parser.add_argument('--std_B', type=float, default=780.4723869231325, help='std of mean depth in B')     
         return parser
-    
     
     def __init__(self, opt):
         super(SemiCycleGANModel, self).__init__(opt)
-        
         if self.isTrain:
             self.loss_names = ['D_A_depth', 'D_B_depth', 'G_A', 'G_B', 'cycle_A']
             if self.opt.use_second_cycle:
@@ -85,12 +83,12 @@ class SemiCycleGANModel(BaseModel, nn.Module):
         else: 
             self.model_names = ['netG_A', 'netG_B']
         
-        if self.opt.old_generator:
-            self.netG_A = network.define_G(opt, direction='A2B')
-            self.netG_B = network.define_G(opt, direction='B2A')
-        else:
-            self.netG_A = network.define_Gen(opt, direction='A2B')
-            self.netG_B = network.define_Gen(opt, direction='B2A')
+#         if self.opt.old_generator:
+#             self.netG_A = network.define_G(opt, direction='A2B')
+#             self.netG_B = network.define_G(opt, direction='B2A')
+#         else:
+        self.netG_A = network.define_Gen(opt, direction='A2B')
+        self.netG_B = network.define_Gen(opt, direction='B2A')
             
         if self.isTrain:
             self.netD_A_depth = network.define_D(opt, input_type = 'depth')
@@ -115,7 +113,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
             self.optimizers.extend([self.optimizer_G, self.optimizer_D])
             
             self.surf_normals = network.SurfaceNormals()
-            self.gaus_blur = GaussianSmoothing(1, 7, 10, self.device)  #HYPERPARAM
+#             self.gaus_blur = GaussianSmoothing(1, 7, 10, self.device)  #HYPERPARAM
             self.l_depth_A = self.opt.l_depth_A_begin
             self.l_depth_B = self.opt.l_depth_B_begin
             self.l_cycle_A = self.opt.l_cycle_A_begin
@@ -160,20 +158,20 @@ class SemiCycleGANModel(BaseModel, nn.Module):
     
     def backward_D_A(self):
 #         fake_B = self.fake_B_pool
-#         if self.opt.use_mean_matching:
-#             self.real_noise_B, self.fake_noise_B = self.mean_matching(self.real_depth_B, self.fake_depth_B)
-#             self.loss_D_A_depth = self.backward_D_base(self.netD_A_depth, self.real_noise_B, self.fake_noise_B)
-#         else:
-        self.loss_D_A_depth = self.backward_D_base(self.netD_A_depth, self.real_depth_B, self.fake_depth_B)
+        if self.opt.use_mean_matching:
+            self.real_noise_B, self.fake_noise_B = self.mean_matching(self.real_depth_B, self.fake_depth_B)
+            self.loss_D_A_depth = self.backward_D_base(self.netD_A_depth, self.real_noise_B, self.fake_noise_B)
+        else:
+            self.loss_D_A_depth = self.backward_D_base(self.netD_A_depth, self.real_depth_B, self.fake_depth_B)
         if self.opt.disc_for_normals:
             self.loss_D_A_normal = self.backward_D_base(self.netD_A_normal, self.surf_normals(self.real_depth_B), self.surf_normals(self.fake_depth_B))
     
     def backward_D_B(self):
-#         if self.opt.use_mean_matching:
-#             self.real_noise_A, self.fake_noise_A = self.mean_matching(self.real_depth_A, self.fake_depth_A)
-#             self.loss_D_B_depth = self.backward_D_base(self.netD_B_depth, self.real_noise_A, self.fake_noise_A )
-#         else:
-        self.loss_D_B_depth = self.backward_D_base(self.netD_B_depth, self.real_depth_A, self.fake_depth_A)
+        if self.opt.use_mean_matching:
+            self.real_noise_A, self.fake_noise_A = self.mean_matching(self.real_depth_A, self.fake_depth_A)
+            self.loss_D_B_depth = self.backward_D_base(self.netD_B_depth, self.real_noise_A, self.fake_noise_A )
+        else:
+            self.loss_D_B_depth = self.backward_D_base(self.netD_B_depth, self.real_depth_A, self.fake_depth_A)
         if self.opt.disc_for_normals:
             self.loss_D_B_normal = self.backward_D_base(self.netD_B_normal, self.surf_normals(self.real_depth_A), self.surf_normals(self.fake_depth_A))
     

@@ -28,7 +28,7 @@ class BaseOptions():
         
         # model parameters
         parser.add_argument('--model', type=str, default='semi_cycle_gan', help='chooses which model to use. [semi_cycle_gan | A2B | holes_unet ]')
-        parser.add_argument('--old_generator', action='store_true', default=False, help='use old version of building generator')
+#         parser.add_argument('--old_generator', action='store_true', default=False, help='use old version of building generator')
         parser.add_argument('--disc_for_normals', action='store_true', default=False, help='use old version of building generator')
 #         parser.add_argument('--attention', action='store_true', default=False, help='use attention')
         parser.add_argument('--use_semantic', action='store_true', default=False, help='use semantic')
@@ -46,7 +46,7 @@ class BaseOptions():
         parser.add_argument('--ndf', type=int, default=64, help='# of discrim filters in the first conv layer')
         parser.add_argument('--netD', type=str, default='n_layers', help='specify discriminator architecture [basic | n_layers | pixel]. The basic model is a 70x70 PatchGAN. n_layers allows you to specify the layers in the discriminator, basic = n_layers=3, pixel-3 conv layer, all PatchGAN')
         parser.add_argument('--n_layers_D', type=int, default=3, help='only used if netD==n_layers')
-        parser.add_argument('--netG', type=str, default='resnet_6blocks', help='specify generator architecture [resnet_9blocks | resnet_6blocks]')
+#         parser.add_argument('--netG', type=str, default='resnet_6blocks', help='specify generator architecture [resnet_9blocks | resnet_6blocks]')
         parser.add_argument('--n_blocks', type=int, default=9, help='# of res blocks')
         parser.add_argument('--norm', type=str, default='instance', help='instance normalization or batch normalization [instance | batch | none]')
         parser.add_argument('--upsampling_type', type=str, default='upconv', help='upsampling operation [upconv | uptranspose | transpose]')

@@ -520,7 +520,7 @@ class Decoder(nn.Module):
 class ConvTranspose(nn.Module):
     def __init__(self,in_chanels, out_chanels, use_bias, opt):
         super(ConvTranspose, self).__init__()
-        self.transposeconv = nn.ConvTranspose2d(in_chanels, out_chanels, kernel_size=2, stride=2, padding=0, output_padding=0, dilation=1, padding_mode='zeros', bias=use_bias)  #kernel_size=3, stride=2, padding=1, output_padding=1,
+        self.transposeconv = nn.ConvTranspose2d(in_chanels, out_chanels, kernel_size=4, stride=2, padding=1, output_padding=0, dilation=1, padding_mode='zeros', bias=use_bias)  #kernel_size=3, stride=2, padding=1, output_padding=1,
     def forward(self, x):
         return self.transposeconv(x)
     

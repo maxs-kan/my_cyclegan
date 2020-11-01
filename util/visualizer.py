@@ -195,7 +195,7 @@ class Visualizer():
         A_depth_fake = util.tensor2im(img_dict['fake_depth_A'], self.opt, isDepth=True)
         if self.opt.isTrain:
             A_depth_rec = util.tensor2im(img_dict['rec_depth_A'], self.opt, isDepth=True)
-#             B_depth_rec = util.tensor2im(img_dict['rec_depth_B'], self.opt, isDepth=True)
+            B_depth_rec = util.tensor2im(img_dict['rec_depth_B'], self.opt, isDepth=True)
             B_idt = util.tensor2im(img_dict['idt_B'], self.opt, isDepth=True)
             A_idt = util.tensor2im(img_dict['idt_A'], self.opt, isDepth=True)
             if self.opt.use_semantic:
@@ -203,9 +203,9 @@ class Visualizer():
                 A_semantic_pred = util.logits_to_label(img_dict['rec_semantic_A'])
             if self.opt.use_mean_matching:
                 B_noise_fake = util.tensor2im(img_dict['fake_noise_B'], self.opt, isDepth=True)
-                B_noise_real = util.tensor2im(img_dict['real_noise_B'], self.opt, isDepth=True)
+#                 B_noise_real = util.tensor2im(img_dict['real_noise_B'], self.opt, isDepth=True)
                 A_noise_fake = util.tensor2im(img_dict['fake_noise_A'], self.opt, isDepth=True)
-                A_noise_real = util.tensor2im(img_dict['real_noise_A'], self.opt, isDepth=True)
+#                 A_noise_real = util.tensor2im(img_dict['real_noise_A'], self.opt, isDepth=True)
         max_dist = self.opt.max_distance/1000
         batch_size = A_imgs.shape[0]
         if self.opt.isTrain:
@@ -228,7 +228,7 @@ class Visualizer():
                 axes[2*i,1].set_title('Real Depth')
                 axes[2*i,2].set_title('R-S Depth')
                 axes[2*i,3].set_title('R-S Noise')
-                axes[2*i,4].set_title('S Noise')
+                axes[2*i,4].set_title('Idt')
                 axes[2*i,5].set_title('Cycle Depth A')
 #                 axes[2*i,4].set_title('G_s-r(Real Depth)')
                 
@@ -236,7 +236,7 @@ class Visualizer():
                 axes[2*i+1,1].set_title('Syn Depth')
                 axes[2*i+1,2].set_title('S-R Depth')
                 axes[2*i+1,3].set_title('S-R Noise')
-                axes[2*i+1,4].set_title('R Noise')
+                axes[2*i+1,4].set_title('Idt')
                 axes[2*i+1,5].set_title('Cycle Depth B')
 #                 axes[2*i+1,4].set_title('G_r-s(Syn Depth)')
                 
@@ -255,7 +255,7 @@ class Visualizer():
                 axes[2*i,0].imshow(A_imgs[i])
                 r_d = axes[2*i,1].imshow(A_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 axes[2*i,2].imshow(B_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-                axes[2*i,3].imshow(B_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i,3].imshow(B_noise_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 axes[2*i,4].imshow(B_idt[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 axes[2*i,5].imshow(A_depth_rec[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
 #                 axes[2*i,4].imshow(B_idt[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
@@ -263,9 +263,9 @@ class Visualizer():
                 axes[2*i+1,0].imshow(B_imgs[i])
                 axes[2*i+1,1].imshow(B_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 axes[2*i+1,2].imshow(A_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-                axes[2*i+1,3].imshow(A_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i+1,3].imshow(A_noise_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 axes[2*i+1,4].imshow(A_idt[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-                axes[2*i+1,5].imshow(A_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+                axes[2*i+1,5].imshow(B_depth_rec[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
 #                 axes[2*i+1,4].imshow(A_idt[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
                 
                 if self.opt.use_semantic:
@@ -289,25 +289,25 @@ class Visualizer():
                     axes[2*i+1,6].plot(A_depth_fake[i][100], label = 'S-R Depth')
                     axes[2*i+1,6].legend()
                 fig.colorbar(r_d, ax=axes[2*i,1],fraction=0.046, pad=0.03)
-        else:
-            plt.plot(A_depth[0][100], label = 'Real Depth')
-            plt.plot(B_depth_fake[0][100], label = 'R-S Depth')
-            plt.legend()
-            n_col = 3
-            n_row = batch_size
-            fig, axes = plt.subplots(nrows = n_row, ncols = n_col, figsize=(30, 60))
-            fig.subplots_adjust(hspace=0.01, wspace=0.1)
-            for ax in axes.flatten():
-                ax.axis('off')
-            for i in range(n_row):
-                axes[i,0].set_title('Real RGB')
-                axes[i,1].set_title('Real Depth')
-                axes[i,2].set_title('R-S Depth')
+#         else:
+#             plt.plot(A_depth[0][100], label = 'Real Depth')
+#             plt.plot(B_depth_fake[0][100], label = 'R-S Depth')
+#             plt.legend()
+#             n_col = 3
+#             n_row = batch_size
+#             fig, axes = plt.subplots(nrows = n_row, ncols = n_col, figsize=(30, 60))
+#             fig.subplots_adjust(hspace=0.01, wspace=0.1)
+#             for ax in axes.flatten():
+#                 ax.axis('off')
+#             for i in range(n_row):
+#                 axes[i,0].set_title('Real RGB')
+#                 axes[i,1].set_title('Real Depth')
+#                 axes[i,2].set_title('R-S Depth')
                 
-                axes[i,0].imshow(A_imgs[i])
-                r_d = axes[i,1].imshow(A_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-                axes[i,2].imshow(B_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-                fig.colorbar(r_d, ax=axes[i,1],fraction=0.046, pad=0.03)
+#                 axes[i,0].imshow(A_imgs[i])
+#                 r_d = axes[i,1].imshow(A_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+#                 axes[i,2].imshow(B_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+#                 fig.colorbar(r_d, ax=axes[i,1],fraction=0.046, pad=0.03)
         return fig
 
 
