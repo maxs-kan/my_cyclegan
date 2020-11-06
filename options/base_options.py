@@ -30,10 +30,12 @@ class BaseOptions():
         parser.add_argument('--model', type=str, default='semi_cycle_gan', help='chooses which model to use. [semi_cycle_gan | A2B | holes_unet ]')
 #         parser.add_argument('--old_generator', action='store_true', default=False, help='use old version of building generator')
         parser.add_argument('--disc_for_normals', action='store_true', default=False, help='use old version of building generator')
+        parser.add_argument('--disc_for_depth', action='store_true', default=False, help='use old version of building generator')
 #         parser.add_argument('--attention', action='store_true', default=False, help='use attention')
         parser.add_argument('--use_semantic', action='store_true', default=False, help='use semantic')
         parser.add_argument('--use_mean_matching', action='store_true', default=False, help='randomly add bias to generated depth before disc')
         parser.add_argument('--use_second_cycle', action='store_true', default=False, help='use cycle loss B2A2B')
+        parser.add_argument('--use_semi_cycle', action='store_true', default=False, help='only 1 gen in bacward for cycle loss')
         
         parser.add_argument('--init_type', type=str, default='xavier', help='network initialization [normal | xavier | kaiming | orthogonal]')
         parser.add_argument('--n_downsampling', type=int, default=2, help='# of downsamling')

@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
+import numpy as np
 
 
 ###############################################################################
@@ -168,9 +169,9 @@ def define_D(opt, input_type='depth'):
     if input_type == 'depth':
         input_nc = 1
     elif input_type == 'normal':
-        input_nc = 2
-    elif input_type == 'depth_normal':
         input_nc = 3
+    elif input_type == 'depth_normal':
+        input_nc = 4
     else:
         raise NotImplementedError('Input for discriminator [%s] is not recognized' % input_type)
     ndf  = opt.ndf
@@ -297,17 +298,28 @@ def cal_gradient_penalty(netD, real_data, fake_data, device, type='mixed', const
         return 0.0, None
 
 class MeanMatching(nn.Module):
-    def __init__(self):
+    def __init__(self, mu):
         super(MeanMatching, self).__init__()
-    
-    def forward(self, real, fake):
-        mask_real = real > -1.0
-        mask_fake = fake > -1.0
-        mean_real = torch.sum(real, dim=(2,3), keepdim=True) / (torch.sum(mask_real, dim=(2,3), keepdim=True) + 1e-15)
-        mean_fake = torch.sum(fake, dim=(2,3), keepdim=True) / (torch.sum(mask_fake, dim=(2,3), keepdim=True) + 1e-15)
-        dif = (mean_real - mean_fake) * mask_fake
-        fake = torch.clamp(fake + dif, -1.0, 1.0) #+ torch.normal(mean=0., std=0.001, size=real.shape, device=real.device) #torch.normal(mean=dif, std=0.001)
-        #fake = fake + torch.normal(mean=0., std=0.001, size=fake.shape, device=fake.device)
+        self.mu = mu
+    def forward(self, real, fake, direction):
+        if direction == 'A2B':
+            mask_fake = fake > -1.0
+            shift = np.random.uniform(low=0, high=self.mu) * mask_fake
+            fake = torch.clamp(fake + shift, -1.0, 1.0)
+        elif direction == 'B2A':
+            mask_real = real > -1.0
+            shift = np.random.uniform(low=0, high=self.mu) * mask_real
+            real = torch.clamp(real + shift, -1.0, 1.0)
+        else:
+            NotImplementedError('Specify direction')
+#         if torch.rand((1,)).item() > 0.5:
+#             mask_real = real > -1.0
+#             mask_fake = fake > -1.0
+#             mean_real = torch.sum(real, dim=(2,3), keepdim=True) / (torch.sum(mask_real, dim=(2,3), keepdim=True) + 1e-15)
+#             mean_fake = torch.sum(fake, dim=(2,3), keepdim=True) / (torch.sum(mask_fake, dim=(2,3), keepdim=True) + 1e-15)
+#             dif = (mean_real - mean_fake) * mask_fake
+#             fake = torch.clamp(fake + dif, -1.0, 1.0) #+ torch.normal(mean=0., std=0.001, size=real.shape, device=real.device) #torch.normal(mean=dif, std=0.001)
+            #fake = fake + torch.normal(mean=0., std=0.001, size=fake.shape, device=fake.device)
         return real, fake
 class MaskedL1Loss(nn.Module):
     def __init__(self):
@@ -324,15 +336,17 @@ class MaskedLoss(nn.Module):
         return torch.sum(torch.mul(y-x, mask)) / (mask.sum() + 1e-15)
     
 class SurfaceNormals(nn.Module):
+    
     def __init__(self):
         super(SurfaceNormals, self).__init__()
+    
     def forward(self, depth):
         dzdx = -self.gradient_for_normals(depth, axis=2)
         dzdy = -self.gradient_for_normals(depth, axis=3)
-        norm = torch.cat((dzdx, dzdy), dim=1)
-#         norm[2, :, :] = torch.ones_like(depth)
-#         n = torch.norm(norm, p=2, dim = 0, keepdim=True)
-        return norm 
+        norm = torch.cat((dzdx, dzdy, torch.ones_like(depth)), dim=1)
+        n = torch.norm(norm, p=2, dim=1, keepdim=True)
+        return norm / (n + 1e-15)
+    
     def gradient_for_normals(self, f, axis=None):
         N = f.ndim  # number of dimensions
         dx = 1.0

@@ -50,7 +50,7 @@ if __name__ == '__main__':
             if global_iter % opt.loss_freq == 0:
                 wandb.log(model.get_current_losses(), step = global_iter)
             if global_iter % opt.img_freq == 0:
-                print('D_A loss : {:04.3f}, D_B loss : {:04.3f}'.format(model.get_current_losses()['D_A_depth'], model.get_current_losses()['D_B_depth']))
+#                 print('D_A loss : {:04.3f}, D_B loss : {:04.3f}'.format(model.get_current_losses()['D_A_depth'], model.get_current_losses()['D_B_depth']))
                 print('{} img procesed out of {}, taken {:04.2f} sec per 1 batch'.format((i+1)*opt.batch_size, dataset_size, iter_finish_time - iter_start_time))
                 fig = vis.plot_img(model.get_current_vis())#vis.plot_img(model.get_current_vis())
                 wandb.log({"chart": fig}, step=global_iter)
