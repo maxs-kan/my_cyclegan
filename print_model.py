@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[ ]:
-
-
 from options.test_options import TestOptions
 from models import create_model
 import torch

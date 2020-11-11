@@ -1,6 +1,6 @@
 import argparse
 import os
-from util import util
+from utils import util
 import torch
 import models
 import dataloader
@@ -25,9 +25,10 @@ class BaseOptions():
         parser.add_argument('--name', type=str, default='test', help='name of the experiment. It decides where to store samples and models')
         parser.add_argument('--gpu_ids', type=str, default='0,1', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
         parser.add_argument('--checkpoints_dir', type=str, default='./checkpoints', help='models are saved here')
+        parser.add_argument('--weights_dir', type=str, default='./checkpoints/pretrain_weights/', help='pretrain weights')
         
         # model parameters
-        parser.add_argument('--model', type=str, default='semi_cycle_gan', help='chooses which model to use. [semi_cycle_gan | A2B | holes_unet ]')
+        parser.add_argument('--model', type=str, default='semi_cycle_gan', help='chooses which model to use. [semi_cycle_gan | A2B | holes_unet | pretrain]')
 #         parser.add_argument('--old_generator', action='store_true', default=False, help='use old version of building generator')
         parser.add_argument('--disc_for_normals', action='store_true', default=False, help='use old version of building generator')
         parser.add_argument('--disc_for_depth', action='store_true', default=False, help='use old version of building generator')
@@ -36,6 +37,7 @@ class BaseOptions():
         parser.add_argument('--use_mean_matching', action='store_true', default=False, help='randomly add bias to generated depth before disc')
         parser.add_argument('--use_second_cycle', action='store_true', default=False, help='use cycle loss B2A2B')
         parser.add_argument('--use_semi_cycle', action='store_true', default=False, help='only 1 gen in bacward for cycle loss')
+        parser.add_argument('--use_petrain_weights', action='store_true', default=False, help='pretrain weights for gen')
         
         parser.add_argument('--init_type', type=str, default='xavier', help='network initialization [normal | xavier | kaiming | orthogonal]')
         parser.add_argument('--n_downsampling', type=int, default=2, help='# of downsamling')
@@ -51,7 +53,7 @@ class BaseOptions():
 #         parser.add_argument('--netG', type=str, default='resnet_6blocks', help='specify generator architecture [resnet_9blocks | resnet_6blocks]')
         parser.add_argument('--n_blocks', type=int, default=9, help='# of res blocks')
         parser.add_argument('--norm', type=str, default='instance', help='instance normalization or batch normalization [instance | batch | none]')
-        parser.add_argument('--upsampling_type', type=str, default='upconv', help='upsampling operation [upconv | uptranspose | transpose]')
+        parser.add_argument('--upsampling_type', type=str, default='transpose', help='upsampling operation [upconv | uptranspose | transpose]')
 #         parser.add_argument('--init_std', type=float, default=0.02, help='std for normal initialization.')
         parser.add_argument('--dropout', action='store_true', default=False, help='dropout for the generator')
         parser.add_argument('--gan_mode', type=str, default='lsgan', help='the type of GAN objective. [vanilla| lsgan | wgangp]. vanilla GAN loss is the cross-entropy objective used in the original GAN paper.')
@@ -70,6 +72,7 @@ class BaseOptions():
         # additional parameters
         parser.add_argument('--deterministic', action='store_true', default=False, help='deterministic of cudnn, if true maybe slower')
         parser.add_argument('--load_epoch', type=str, default='last', help='which epoch to load? set to latest to use latest cached model')
+        parser.add_argument('--load_epoch_weights', type=str, default='last', help='which epoch to load for pretraned weights? set to last to use latest cached model')
         parser.add_argument('--load_iter', type=int, default='0', help='which iteration to load? if load_iter > 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch]')
         parser.add_argument('--n_pic', type=int, default=3, help='# of picture pairs for vis.')
         parser.add_argument('--verbose', action='store_true', help='if specified, print more debugging information')

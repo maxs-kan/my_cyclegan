@@ -14,7 +14,6 @@ class BaseModel(ABC, torch.nn.Module):
         self.model_names = []
         self.visuals_names = []
         self.optimizers = []
-        self.opt_names = ['optimizer_G', 'optimizer_D']
 #         self.image_paths = []
         self.metric = 0    # validation loss plateau sheduler
     
@@ -37,7 +36,25 @@ class BaseModel(ABC, torch.nn.Module):
         if not self.isTrain or self.opt.continue_train:
             load_suffix = 'iter_%d' % self.opt.load_iter if self.opt.load_iter > 0 else self.opt.load_epoch
             self.load_networks(load_suffix)
+        elif self.opt.use_petrain_weights:
+            load_suffix = self.opt.load_epoch_weights
+            self.load_weights(load_suffix)
         self.print_networks()
+    
+    def load_weights(self, epoch):
+        load_filename = '%s.pt' % (epoch)
+        load_path = os.path.join(self.opt.weights_dir, load_filename)
+        checkpoint = torch.load(load_path, map_location=self.device)
+        for name in  ['netG_A', 'netG_B']:
+            assert isinstance(name, str), 'model name must be str'
+            net = getattr(self, name)
+            if isinstance(net, torch.nn.DataParallel):
+                net = net.module
+            print('loading the model from %s' % load_path)
+            state_dict = checkpoint[name]
+            if hasattr(state_dict, '_metadata'):
+                del state_dict._metadata
+            net.load_state_dict(state_dict)
     
     def train_mode(self):
         for name in self.model_names:
@@ -146,14 +163,13 @@ class BaseModel(ABC, torch.nn.Module):
             print('[Network %s] Total number of parameters : %.3f M' % (name, num_params / 1e6))
         print('-----------------------------------------------')
 
-    def check_nan(self, nets):
-        if not isinstance(nets, list):
-            nets = [nets]
-        for net in nets:
-            if net is not None:
-                for param in net.parameters():
-                    if torch.isnan(param).any():
-                        raise RuntimeError('NaN in param', net)
+    def check_nan(self):
+        for name in self.model_names:
+            assert isinstance(name, str), 'model_names  must be string'
+            net = getattr(self, name)
+            for param in net.parameters():
+                if torch.isnan(param).any():
+                    raise RuntimeError('NaN in param', name)
     
     def zero_grad(self, nets):
         if not isinstance(nets, list):

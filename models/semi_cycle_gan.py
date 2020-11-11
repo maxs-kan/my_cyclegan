@@ -2,8 +2,8 @@ import itertools
 # from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import network
-from util.util import GaussianSmoothing
-from util import util
+from utils.util import GaussianSmoothing
+from utils import util
 import torch
 import torch.nn as nn
 import random
@@ -16,9 +16,10 @@ ngf = 64
 n_bloc=4
 n_dis=6
 Cycle loss on new holes?
-num iter gen on new pictures?
+num iter gen on different pictures?
 identical and cycle on same pic?
 how add normal loss
+group norm
 '''
 class SemiCycleGANModel(BaseModel, nn.Module):
     
@@ -94,7 +95,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
 #         else:
         self.netG_A = network.define_Gen(opt, direction='A2B')
         self.netG_B = network.define_Gen(opt, direction='B2A')
-            
+        self.criterionDepthRange = network.MaskedL1Loss()
         if self.isTrain:
             self.disc = []
             if self.opt.disc_for_depth:
@@ -111,13 +112,13 @@ class SemiCycleGANModel(BaseModel, nn.Module):
             self.criterionCycle_A = network.MaskedL1Loss()
             self.criterionCycle_B = network.MaskedL1Loss()#nn.L1Loss()
             self.criterionIdt = nn.L1Loss()
-            self.criterionDepthRange = network.MaskedL1Loss()
             if self.opt.use_semantic:
 #                 weight_class = torch.tensor([3.0]).to(self.device)   #HYPERPARAM
                 self.criterionSemantic = nn.CrossEntropyLoss()
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr_G, betas=(opt.beta1, 0.999))
             self.optimizer_D = torch.optim.Adam(itertools.chain(*[m.parameters() for m in self.disc]), lr=opt.lr_D, betas=(opt.beta1, 0.999))
             self.optimizers.extend([self.optimizer_G, self.optimizer_D])
+            self.opt_names = ['optimizer_G', 'optimizer_D']
             
             self.surf_normals = network.SurfaceNormals()
 #             self.gaus_blur = GaussianSmoothing(1, 7, 10, self.device)  #HYPERPARAM
@@ -125,7 +126,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
             self.l_depth_B = self.opt.l_depth_B_begin
             self.l_cycle_A = self.opt.l_cycle_A_begin
             self.l_cycle_B = self.opt.l_cycle_B_begin
-            self.mu_shift = (self.opt.mean_B - self.opt.std_B - self.opt.mean_A) / (self.opt.max_distance / 2)
+            self.mu_shift = (self.opt.mean_B - self.opt.std_B - self.opt.mean_A + self.opt.std_A) / (self.opt.max_distance / 2)
             self.mean_matching = network.MeanMatching(self.mu_shift) 
             
 #             self.std_shift = (self.opt.std_B - self.opt.std_A) / (self.opt.max_distance / 2) 

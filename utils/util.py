@@ -1,5 +1,5 @@
 """This module contains simple helper functions """
-from __future__ import print_function
+# from __future__ import print_function
 import torch
 import numpy as np
 from PIL import Image
@@ -21,13 +21,14 @@ def get_normal(depth):
     norm = norm/(n + 1e-15)
     return norm
 
-def get_normal_metric(depth):
-    norm = np.zeros((2, depth.shape[0], depth.shape[1]))
-    dzdx = np.gradient(depth, 1, axis=0)
-    dzdy = np.gradient(depth, 1, axis=1)
-    norm[ 0, :, :] = -dzdx
-    norm[ 1, :, :] = -dzdy
-    n = np.linalg.norm(norm, axis = 0, ord=2, keepdims=True)
+def get_normals(depth):
+    norm = np.zeros(( depth.shape[0], depth.shape[1], depth.shape[2], 3))
+    dzdx = np.gradient(depth, 1, axis=1)
+    dzdy = np.gradient(depth, 1, axis=2)
+    norm[:, :, :, 0] = -dzdx
+    norm[:, :, :, 1] = -dzdy
+    norm[:, :, :, 2] = np.ones_like(depth)
+    n = np.linalg.norm(norm, axis = 3, ord=2, keepdims=True)
     norm = norm/(n + 1e-15)
     return norm
 
@@ -40,6 +41,7 @@ def data_to_meters(input, opt):
     input = input * scale + scale
     input /= 1000.0
     return input
+
 
 def tensor2im(input, opt, isDepth = True):
     """"Converts a Tensor array into a numpy image array in meters.

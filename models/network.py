@@ -40,7 +40,7 @@ def get_norm_layer(norm_type='instance'):
     if norm_type == 'batch':
         norm_layer = functools.partial(nn.BatchNorm2d, affine=True, track_running_stats=True)
     elif norm_type == 'instance':
-        norm_layer = functools.partial(nn.InstanceNorm2d, affine=False, track_running_stats=False)
+        norm_layer = functools.partial(nn.InstanceNorm2d, affine=True, track_running_stats=False)
     elif norm_type == 'none':
         def norm_layer(x): return Identity()
     else:
@@ -303,10 +303,22 @@ class MeanMatching(nn.Module):
         self.mu = mu
     def forward(self, real, fake, direction):
         if direction == 'A2B':
+#             mask_real = real > -1.0
+#             mask_fake = fake > -1.0
+#             mean_real = torch.sum(real, dim=(2,3), keepdim=True) / (torch.sum(mask_real, dim=(2,3), keepdim=True) + 1e-15)
+#             mean_fake = torch.sum(fake, dim=(2,3), keepdim=True) / (torch.sum(mask_fake, dim=(2,3), keepdim=True) + 1e-15)
+#             dif = (mean_real - mean_fake) * mask_fake
+#             fake = torch.clamp(fake + dif, -1.0, 1.0)
             mask_fake = fake > -1.0
             shift = np.random.uniform(low=0, high=self.mu) * mask_fake
             fake = torch.clamp(fake + shift, -1.0, 1.0)
         elif direction == 'B2A':
+#             mask_real = real > -1.0
+#             mask_fake = fake > -1.0
+#             mean_real = torch.sum(real, dim=(2,3), keepdim=True) / (torch.sum(mask_real, dim=(2,3), keepdim=True) + 1e-15)
+#             mean_fake = torch.sum(fake, dim=(2,3), keepdim=True) / (torch.sum(mask_fake, dim=(2,3), keepdim=True) + 1e-15)
+#             dif  = (mean_fake - mean_real) * mask_real
+#             real = torch.clamp(real + dif, -1.0, 1.0)
             mask_real = real > -1.0
             shift = np.random.uniform(low=0, high=self.mu) * mask_real
             real = torch.clamp(real + shift, -1.0, 1.0)
@@ -608,9 +620,9 @@ class Generator(nn.Module):
         norm_layer = get_norm_layer(norm_type=opt.norm)
         up_layer = get_upsampling(upsampling_type=opt.upsampling_type)
         if type(norm_layer) == functools.partial:
-            use_bias = norm_layer.func == nn.InstanceNorm2d
+            use_bias = False#norm_layer.func == nn.InstanceNorm2d
         else:
-            use_bias = norm_layer == nn.InstanceNorm2d
+            use_bias = False#norm_layer == nn.InstanceNorm2d
         if self.direction == 'A2B':
             base_nc = opt.ngf_img+opt.ngf_depth
             self.enc_img = Encoder(input_nc=opt.input_nc_img, base_nc=opt.ngf_img, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
@@ -692,216 +704,216 @@ class NLayerDiscriminator(nn.Module):
         return self.model(input)
     
 
-def define_G(opt, direction = None):
+# def define_G(opt, direction = None):
     
-    """Create a generator
+#     """Create a generator
 
-    Parameters:
-        input_nc (int) -- the number of channels in input images
-        output_nc (int) -- the number of channels in output images
-        ngf (int) -- the number of filters in the last conv layer
-        netG (str) -- the architecture's name: resnet_9blocks | resnet_6blocks | unet_256 | unet_128
-        norm (str) -- the name of normalization layers used in the network: batch | instance | none
-        use_dropout (bool) -- if use dropout layers.
-        init_type (str)    -- the name of our initialization method.
-        init_gain (float)  -- scaling factor for normal, xavier and orthogonal.
-        gpu_ids (int list) -- which GPUs the network runs on: e.g., 0,1,2
+#     Parameters:
+#         input_nc (int) -- the number of channels in input images
+#         output_nc (int) -- the number of channels in output images
+#         ngf (int) -- the number of filters in the last conv layer
+#         netG (str) -- the architecture's name: resnet_9blocks | resnet_6blocks | unet_256 | unet_128
+#         norm (str) -- the name of normalization layers used in the network: batch | instance | none
+#         use_dropout (bool) -- if use dropout layers.
+#         init_type (str)    -- the name of our initialization method.
+#         init_gain (float)  -- scaling factor for normal, xavier and orthogonal.
+#         gpu_ids (int list) -- which GPUs the network runs on: e.g., 0,1,2
 
-    Returns a generator
+#     Returns a generator
 
-    Our current implementation provides two types of generators:
-        U-Net: [unet_128] (for 128x128 input images) and [unet_256] (for 256x256 input images)
-        The original U-Net paper: https://arxiv.org/abs/1505.04597
+#     Our current implementation provides two types of generators:
+#         U-Net: [unet_128] (for 128x128 input images) and [unet_256] (for 256x256 input images)
+#         The original U-Net paper: https://arxiv.org/abs/1505.04597
 
-        Resnet-based generator: [resnet_6blocks] (with 6 Resnet blocks) and [resnet_9blocks] (with 9 Resnet blocks)
-        Resnet-based generator consists of several Resnet blocks between a few downsampling/upsampling operations.
-        We adapt Torch code from Justin Johnson's neural style transfer project (https://github.com/jcjohnson/fast-neural-style).
+#         Resnet-based generator: [resnet_6blocks] (with 6 Resnet blocks) and [resnet_9blocks] (with 9 Resnet blocks)
+#         Resnet-based generator consists of several Resnet blocks between a few downsampling/upsampling operations.
+#         We adapt Torch code from Justin Johnson's neural style transfer project (https://github.com/jcjohnson/fast-neural-style).
 
 
-    The generator has been initialized by <init_net>. It uses RELU for non-linearity.
-    """
-    if direction == 'A2B':
-        input_nc = (opt.input_nc_img, opt.input_nc_depth)
-    elif direction == 'B2A':
-        input_nc = opt.input_nc_depth
-    else:
-        raise NotImplementedError('specify # of input chanels')
-    output_nc = opt.output_nc_depth
-    ngf_rgb  = opt.ngf_img
-    ngf_depth  = opt.ngf_depth
-    norm_layer = get_norm_layer(norm_type=opt.norm)
-    net = None
-    if opt.netG == 'resnet_9blocks':
-        net = ResnetGenerator(input_nc, output_nc, direction, ngf_rgb, ngf_depth,  norm_layer=norm_layer, use_dropout=opt.dropout, n_blocks=9)
-    elif opt.netG == 'resnet_6blocks':
-        net = ResnetGenerator(input_nc, output_nc, direction, ngf_rgb, ngf_depth,  norm_layer=norm_layer, use_dropout=opt.dropout, n_blocks=6)
-    elif opt.netG == 'resnet_3blocks':
-        net = ResnetGenerator(input_nc, output_nc, direction, ngf_rgb, ngf_depth,  norm_layer=norm_layer, use_dropout=opt.dropout, n_blocks=3)
-#     elif opt.netG == 'unet_128':
-#         net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
-#     elif opt.netG == 'unet_256': 
-#         net = UnetGenerator(input_nc, ngf_depth_edge, 1)
-    else:
-        raise NotImplementedError('Generator model name [%s] is not recognized' % opt.netG)
-    return init_net(net=net, init_type=opt.init_type, init_gain='relu', gpu_ids=opt.gpu_ids)
+#     The generator has been initialized by <init_net>. It uses RELU for non-linearity.
+#     """
+#     if direction == 'A2B':
+#         input_nc = (opt.input_nc_img, opt.input_nc_depth)
+#     elif direction == 'B2A':
+#         input_nc = opt.input_nc_depth
+#     else:
+#         raise NotImplementedError('specify # of input chanels')
+#     output_nc = opt.output_nc_depth
+#     ngf_rgb  = opt.ngf_img
+#     ngf_depth  = opt.ngf_depth
+#     norm_layer = get_norm_layer(norm_type=opt.norm)
+#     net = None
+#     if opt.netG == 'resnet_9blocks':
+#         net = ResnetGenerator(input_nc, output_nc, direction, ngf_rgb, ngf_depth,  norm_layer=norm_layer, use_dropout=opt.dropout, n_blocks=9)
+#     elif opt.netG == 'resnet_6blocks':
+#         net = ResnetGenerator(input_nc, output_nc, direction, ngf_rgb, ngf_depth,  norm_layer=norm_layer, use_dropout=opt.dropout, n_blocks=6)
+#     elif opt.netG == 'resnet_3blocks':
+#         net = ResnetGenerator(input_nc, output_nc, direction, ngf_rgb, ngf_depth,  norm_layer=norm_layer, use_dropout=opt.dropout, n_blocks=3)
+# #     elif opt.netG == 'unet_128':
+# #         net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
+# #     elif opt.netG == 'unet_256': 
+# #         net = UnetGenerator(input_nc, ngf_depth_edge, 1)
+#     else:
+#         raise NotImplementedError('Generator model name [%s] is not recognized' % opt.netG)
+#     return init_net(net=net, init_type=opt.init_type, init_gain='relu', gpu_ids=opt.gpu_ids)
     
-class ResnetBlock_(nn.Module):
-    """Define a Resnet block"""
+# class ResnetBlock_(nn.Module):
+#     """Define a Resnet block"""
 
-    def __init__(self, dim, padding_type, norm_layer, use_dropout, use_bias):
-        """Initialize the Resnet block
+#     def __init__(self, dim, padding_type, norm_layer, use_dropout, use_bias):
+#         """Initialize the Resnet block
 
-        A resnet block is a conv block with skip connections
-        We construct a conv block with build_conv_block function,
-        and implement skip connections in <forward> function.
-        Original Resnet paper: https://arxiv.org/pdf/1512.03385.pdf
-        """
-        super(ResnetBlock_, self).__init__()
-        self.conv_block = self.build_conv_block(dim, padding_type, norm_layer, use_dropout, use_bias)
+#         A resnet block is a conv block with skip connections
+#         We construct a conv block with build_conv_block function,
+#         and implement skip connections in <forward> function.
+#         Original Resnet paper: https://arxiv.org/pdf/1512.03385.pdf
+#         """
+#         super(ResnetBlock_, self).__init__()
+#         self.conv_block = self.build_conv_block(dim, padding_type, norm_layer, use_dropout, use_bias)
 
-    def build_conv_block(self, dim, padding_type, norm_layer, use_dropout, use_bias):
-        """Construct a convolutional block.
+#     def build_conv_block(self, dim, padding_type, norm_layer, use_dropout, use_bias):
+#         """Construct a convolutional block.
 
-        Parameters:
-            dim (int)           -- the number of channels in the conv layer.
-            padding_type (str)  -- the name of padding layer: reflect | replicate | zero
-            norm_layer          -- normalization layer
-            use_dropout (bool)  -- if use dropout layers.
-            use_bias (bool)     -- if the conv layer uses bias or not
+#         Parameters:
+#             dim (int)           -- the number of channels in the conv layer.
+#             padding_type (str)  -- the name of padding layer: reflect | replicate | zero
+#             norm_layer          -- normalization layer
+#             use_dropout (bool)  -- if use dropout layers.
+#             use_bias (bool)     -- if the conv layer uses bias or not
 
-        Returns a conv block (with a conv layer, a normalization layer, and a non-linearity layer (ReLU))
-        """
-        conv_block = []
-        p = 0
-        if padding_type == 'reflect':
-            conv_block += [nn.ReflectionPad2d(1)]
-        elif padding_type == 'replicate':
-            conv_block += [nn.ReplicationPad2d(1)]
-        elif padding_type == 'zero':
-            p = 1
-        else:
-            raise NotImplementedError('padding [%s] is not implemented' % padding_type)
+#         Returns a conv block (with a conv layer, a normalization layer, and a non-linearity layer (ReLU))
+#         """
+#         conv_block = []
+#         p = 0
+#         if padding_type == 'reflect':
+#             conv_block += [nn.ReflectionPad2d(1)]
+#         elif padding_type == 'replicate':
+#             conv_block += [nn.ReplicationPad2d(1)]
+#         elif padding_type == 'zero':
+#             p = 1
+#         else:
+#             raise NotImplementedError('padding [%s] is not implemented' % padding_type)
 
-        conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias), norm_layer(dim), nn.ReLU(True)]
-        if use_dropout:
-            conv_block += [nn.Dropout(0.5)]
+#         conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias), norm_layer(dim), nn.ReLU(True)]
+#         if use_dropout:
+#             conv_block += [nn.Dropout(0.5)]
 
-        p = 0
-        if padding_type == 'reflect':
-            conv_block += [nn.ReflectionPad2d(1)]
-        elif padding_type == 'replicate':
-            conv_block += [nn.ReplicationPad2d(1)]
-        elif padding_type == 'zero':
-            p = 1
-        else:
-            raise NotImplementedError('padding [%s] is not implemented' % padding_type)
-        conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias), norm_layer(dim)]
+#         p = 0
+#         if padding_type == 'reflect':
+#             conv_block += [nn.ReflectionPad2d(1)]
+#         elif padding_type == 'replicate':
+#             conv_block += [nn.ReplicationPad2d(1)]
+#         elif padding_type == 'zero':
+#             p = 1
+#         else:
+#             raise NotImplementedError('padding [%s] is not implemented' % padding_type)
+#         conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias), norm_layer(dim)]
 
-        return nn.Sequential(*conv_block)
+#         return nn.Sequential(*conv_block)
 
-    def forward(self, x):
-        """Forward function (with skip connections)"""
-        out = x + self.conv_block(x)  # add skip connections
-        return out
+#     def forward(self, x):
+#         """Forward function (with skip connections)"""
+#         out = x + self.conv_block(x)  # add skip connections
+#         return out
 
     
     
-class ResnetGenerator(nn.Module):
-    """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations.
+# class ResnetGenerator(nn.Module):
+#     """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations.
 
-    We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
-    """
+#     We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
+#     """
 
-    def __init__(self, input_nc, output_nc, direction, ngf_rgb, ngf_depth, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='replicate', n_downsampling=2):
-        """Construct a Resnet-based generator
+#     def __init__(self, input_nc, output_nc, direction, ngf_rgb, ngf_depth, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='replicate', n_downsampling=2):
+#         """Construct a Resnet-based generator
 
-        Parameters:
-            input_nc (int)      -- the number of channels in input images
-            output_nc (int)     -- the number of channels in output images
-            direction (str)     -- the idirection of the generator
-            ngf (int)           -- the number of filters in the last conv layer
-            norm_layer          -- normalization layer
-            use_dropout (bool)  -- if use dropout layers
-            n_blocks (int)      -- the number of ResNet blocks
-            padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
-        """
-        assert(n_blocks >= 0)
-        super(ResnetGenerator, self).__init__()
-        if type(norm_layer) == functools.partial:
-            use_bias = norm_layer.func == nn.InstanceNorm2d
-        else:
-            use_bias = norm_layer == nn.InstanceNorm2d
-        n_downsampling = n_downsampling
-        model = []
-        self.direction = direction
-        if direction == 'A2B': # image and depth as input with diferent path
-            model_rgb = [nn.ReplicationPad2d(3),
-                         nn.Conv2d(input_nc[0], ngf_rgb, kernel_size=7, padding=0, bias=use_bias),
-                         norm_layer(ngf_rgb),
-                         nn.ReLU(True)]
-            for i in range(n_downsampling):  # add downsampling layers
-                mult = 2 ** i
-                model_rgb += [nn.Conv2d(ngf_rgb * mult, ngf_rgb * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
-                              norm_layer(ngf_rgb * mult * 2),
-                              nn.ReLU(True)]
-            self.model_rgb = nn.Sequential(*model_rgb)    
+#         Parameters:
+#             input_nc (int)      -- the number of channels in input images
+#             output_nc (int)     -- the number of channels in output images
+#             direction (str)     -- the idirection of the generator
+#             ngf (int)           -- the number of filters in the last conv layer
+#             norm_layer          -- normalization layer
+#             use_dropout (bool)  -- if use dropout layers
+#             n_blocks (int)      -- the number of ResNet blocks
+#             padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
+#         """
+#         assert(n_blocks >= 0)
+#         super(ResnetGenerator, self).__init__()
+#         if type(norm_layer) == functools.partial:
+#             use_bias = norm_layer.func == nn.InstanceNorm2d
+#         else:
+#             use_bias = norm_layer == nn.InstanceNorm2d
+#         n_downsampling = n_downsampling
+#         model = []
+#         self.direction = direction
+#         if direction == 'A2B': # image and depth as input with diferent path
+#             model_rgb = [nn.ReplicationPad2d(3),
+#                          nn.Conv2d(input_nc[0], ngf_rgb, kernel_size=7, padding=0, bias=use_bias),
+#                          norm_layer(ngf_rgb),
+#                          nn.ReLU(True)]
+#             for i in range(n_downsampling):  # add downsampling layers
+#                 mult = 2 ** i
+#                 model_rgb += [nn.Conv2d(ngf_rgb * mult, ngf_rgb * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
+#                               norm_layer(ngf_rgb * mult * 2),
+#                               nn.ReLU(True)]
+#             self.model_rgb = nn.Sequential(*model_rgb)    
         
-            model_depth = [nn.ReplicationPad2d(3),
-                           nn.Conv2d(input_nc[1], ngf_depth, kernel_size=7, padding=0, bias=use_bias),
-                           norm_layer(ngf_depth),
-                           nn.ReLU(True)]
-            for i in range(n_downsampling):  # add downsampling layers
-                mult = 2 ** i
-                model_depth += [nn.Conv2d(ngf_depth * mult, ngf_depth * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
-                                norm_layer(ngf_depth * mult * 2),
-                                nn.ReLU(True)]    
-            self.model_depth = nn.Sequential(*model_depth) 
-            ngf_final = ngf_depth + ngf_rgb
+#             model_depth = [nn.ReplicationPad2d(3),
+#                            nn.Conv2d(input_nc[1], ngf_depth, kernel_size=7, padding=0, bias=use_bias),
+#                            norm_layer(ngf_depth),
+#                            nn.ReLU(True)]
+#             for i in range(n_downsampling):  # add downsampling layers
+#                 mult = 2 ** i
+#                 model_depth += [nn.Conv2d(ngf_depth * mult, ngf_depth * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
+#                                 norm_layer(ngf_depth * mult * 2),
+#                                 nn.ReLU(True)]    
+#             self.model_depth = nn.Sequential(*model_depth) 
+#             ngf_final = ngf_depth + ngf_rgb
         
-        else: # only depth for input B2A
-            ngf_depth *= 2
-            model += [nn.ReplicationPad2d(3),
-                    nn.Conv2d(input_nc, ngf_depth, kernel_size=7, padding=0, bias=use_bias),
-                    norm_layer(ngf_depth),
-                    nn.ReLU(True)]
-            for i in range(n_downsampling):  # add downsampling layers
-                mult = 2 ** i
-                model += [nn.Conv2d(ngf_depth * mult, ngf_depth * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
-                                norm_layer(ngf_depth * mult * 2),
-                                nn.ReLU(True)]    
-            ngf_final = ngf_depth
-        mult = 2**n_downsampling
-        for i in range(n_blocks):       # add ResNet blocks
-            model += [ResnetBlock_(ngf_final * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]#min(2**i, 16)
+#         else: # only depth for input B2A
+#             ngf_depth *= 2
+#             model += [nn.ReplicationPad2d(3),
+#                     nn.Conv2d(input_nc, ngf_depth, kernel_size=7, padding=0, bias=use_bias),
+#                     norm_layer(ngf_depth),
+#                     nn.ReLU(True)]
+#             for i in range(n_downsampling):  # add downsampling layers
+#                 mult = 2 ** i
+#                 model += [nn.Conv2d(ngf_depth * mult, ngf_depth * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
+#                                 norm_layer(ngf_depth * mult * 2),
+#                                 nn.ReLU(True)]    
+#             ngf_final = ngf_depth
+#         mult = 2**n_downsampling
+#         for i in range(n_blocks):       # add ResNet blocks
+#             model += [ResnetBlock_(ngf_final * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]#min(2**i, 16)
 
-        for i in range(n_downsampling):  # add upsampling layers
-            mult = 2 ** (n_downsampling - i)
-            model += [
-#                 UpBlock(mult * ngf_final, int(ngf_final * mult / 2), 2, use_bias, n_downsampling),
-#                 nn.Upsample(scale_factor=2, mode='nearest'),
-#                 nn.Conv2d(mult * ngf_final, int(ngf_final * mult / 2), kernel_size=3, stride=1, padding=1, bias=use_bias),
-                nn.ConvTranspose2d(mult * ngf_final, int(ngf_final * mult / 2),
-                                   kernel_size=3, stride=2,
-                                   padding=1, output_padding=1,
-                                   bias=use_bias),
-                norm_layer(int(ngf_final * mult / 2)),
-                nn.ReLU(True)]
+#         for i in range(n_downsampling):  # add upsampling layers
+#             mult = 2 ** (n_downsampling - i)
+#             model += [
+# #                 UpBlock(mult * ngf_final, int(ngf_final * mult / 2), 2, use_bias, n_downsampling),
+# #                 nn.Upsample(scale_factor=2, mode='nearest'),
+# #                 nn.Conv2d(mult * ngf_final, int(ngf_final * mult / 2), kernel_size=3, stride=1, padding=1, bias=use_bias),
+#                 nn.ConvTranspose2d(mult * ngf_final, int(ngf_final * mult / 2),
+#                                    kernel_size=3, stride=2,
+#                                    padding=1, output_padding=1,
+#                                    bias=use_bias),
+#                 norm_layer(int(ngf_final * mult / 2)),
+#                 nn.ReLU(True)]
 
-        model += [nn.ReplicationPad2d(3)]
-        model += [nn.Conv2d(ngf_final, output_nc, kernel_size=7, padding=0)]
-        model += [nn.Tanh()]
+#         model += [nn.ReplicationPad2d(3)]
+#         model += [nn.Conv2d(ngf_final, output_nc, kernel_size=7, padding=0)]
+#         model += [nn.Tanh()]
 
-        self.model = nn.Sequential(*model)
+#         self.model = nn.Sequential(*model)
 
-    def forward(self, depth, img=None):
-        """Standard forward"""
-        if img is not None and self.direction=='A2B':
-            img = self.model_rgb(img)
-            depth = self.model_depth(depth)
-            input = torch.cat((img, depth), dim=1)
-        else:
-            input = depth
-        return self.model(input)
+#     def forward(self, depth, img=None):
+#         """Standard forward"""
+#         if img is not None and self.direction=='A2B':
+#             img = self.model_rgb(img)
+#             depth = self.model_depth(depth)
+#             input = torch.cat((img, depth), dim=1)
+#         else:
+#             input = depth
+#         return self.model(input)
 
 # class DownBlock(nn.Module):
 #     def __init__(self, in_chanels, out_chanels, skip=False, pooling='maxpool',k_size =3, dilation=1, pading=1):

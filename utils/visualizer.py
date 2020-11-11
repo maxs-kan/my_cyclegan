@@ -3,11 +3,15 @@ import matplotlib
 import imageio
 import matplotlib.pyplot as plt
 import torch
-from util import util
+from utils import util
 import os
+import logging
+
 class Visualizer():
     def __init__(self, opt):
         self.opt = opt
+        self.logger = logging.getLogger()
+        
         
     def plot_validation(self, names, SAVE_PATH, domain='A', norm=False):
         if domain == 'A':
@@ -126,39 +130,56 @@ class Visualizer():
             imageio.imwrite(os.path.join(path, model_name, phase, 'B', B_name[i]+'_depth.png'), B_depth[i].astype(np.uint16))
             imageio.imwrite(os.path.join(path, model_name, phase, 'B', B_name[i]+'_depth_fake.png'), A_depth_fake[i].astype(np.uint16))
     
-    def plot_a2b(self, img_dict):
-        Img = util.tensor2im(img_dict['real_img_A'], self.opt, isDepth=False)
-        Depth_bad = util.tensor2im(img_dict['real_depth_A'], self.opt, isDepth=True)
-        Pred_depth = util.tensor2im(img_dict['fake_depth_B'], self.opt, isDepth=True)
-        Orig_depth = util.tensor2im(img_dict['real_depth_B'], self.opt, isDepth=True)
-#         Adv_depth = util.tensor2im(img_dict['adv_depth_B'], self.opt, isDepth=True)
-#         if self.opt.isTrain:
-#             True_Hole = img_dict['mask'].squeeze(1).cpu().data.numpy()
-#         else:
-#             True_Hole = np.zeros_like(Orig_depth)
-        batch_size = Img.shape[0]
+    def plot_pretrain(self, img_dict):
+        
+        real_img_A = util.tensor2im(img_dict['real_img_A'], self.opt, isDepth=False)
+        real_depth_A = util.tensor2im(img_dict['real_depth_A'], self.opt, isDepth=True)
+        real_norm_A = util.get_normals(real_depth_A * 1000)
+        fake_depth_A = util.tensor2im(img_dict['fake_depth_A'], self.opt, isDepth=True)
+        fake_norm_A = util.get_normals(fake_depth_A * 1000)
+        
+        real_img_B = util.tensor2im(img_dict['real_img_B'], self.opt, isDepth=False)
+        real_depth_B = util.tensor2im(img_dict['real_depth_B'], self.opt, isDepth=True)
+        real_norm_B = util.get_normals(real_depth_B * 1000)
+        fake_depth_B = util.tensor2im(img_dict['fake_depth_B'], self.opt, isDepth=True)
+        fake_norm_B = util.get_normals(fake_depth_B * 1000)
+        max_dist = self.opt.max_distance/1000
+        batch_size = real_img_A.shape[0]
         n_pic = min(batch_size, self.opt.n_pic)
-        n_row = n_pic
-        n_col = 4
+        n_row = 2 * n_pic
+        n_col = 5
         fig_size = (30,40)
         fig, axes = plt.subplots(nrows=n_row, ncols=n_col, figsize=fig_size)
         fig.subplots_adjust(hspace=0.0, wspace=0.1)
         for i,ax in enumerate(axes.flatten()):
             ax.axis('off')
         for i in range(n_pic):
-            axes[i,0].set_title('Img')
-            axes[i,1].set_title('A_depth')
-#             axes[i,2].set_title('Mask')
-            axes[i,2].set_title('A2B_depth')
-            axes[i,3].set_title('B_depth')
-#             axes[i,5].set_title('Adv_depth')
+            axes[2*i,0].set_title('A_rgb')
+            axes[2*i,1].set_title('A_depth')
+            axes[2*i,2].set_title('A_norm')
+            axes[2*i,3].set_title('fakeA_depth')
+            axes[2*i,4].set_title('fakeA_norm')
+
+            axes[2*i+1,0].set_title('B_rgb')
+            axes[2*i+1,1].set_title('B_depth')
+            axes[2*i+1,2].set_title('B_norm')
+            axes[2*i+1,3].set_title('fakeB_depth')
+            axes[2*i+1,4].set_title('fakeB_norm')
+                
+            axes[2*i,0].imshow(real_img_A[i])
+            axes[2*i,1].imshow(real_depth_A[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+            old_level = self.logger.level
+            self.logger.setLevel(100)
+            axes[2*i,2].imshow(real_norm_A[i])
+            axes[2*i,3].imshow(fake_depth_A[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+            axes[2*i,4].imshow(fake_norm_A[i])
             
-            axes[i,0].imshow(Img[i])
-            axes[i,1].imshow(Depth_bad[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance/1000)
-#             axes[i,2].imshow(True_Hole[i],cmap=plt.get_cmap('RdYlBu'))
-            axes[i,2].imshow(Pred_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance/1000)
-            axes[i,3].imshow(Orig_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance/1000)
-#             axes[i,5].imshow(Adv_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance/1000)
+            axes[2*i+1,0].imshow(real_img_B[i])
+            axes[2*i+1,1].imshow(real_depth_B[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+            axes[2*i+1,2].imshow(real_norm_B[i])
+            axes[2*i+1,3].imshow(fake_depth_B[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+            axes[2*i+1,4].imshow(fake_norm_B[i])
+            self.logger.setLevel(old_level)
         return fig
     
     def plot_holes(self, img_dict):
