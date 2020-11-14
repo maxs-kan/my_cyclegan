@@ -68,7 +68,8 @@ class SemiCycleGANModel(BaseModel, nn.Module):
         self.visuals_names = ['real_img_A', 'real_depth_A',
                               'real_img_B', 'real_depth_B',
                               'fake_depth_B', 'fake_depth_A', 
-                              'rec_depth_A']
+                              'rec_depth_A',
+                              'name_A', 'name_B']
         
         if self.opt.use_second_cycle:
             self.visuals_names.append('rec_depth_B')
@@ -94,7 +95,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
 #             self.netG_B = network.define_G(opt, direction='B2A')
 #         else:
         self.netG_A = network.define_Gen(opt, direction='A2B')
-        self.netG_B = network.define_Gen(opt, direction='B2A')
+        self.netG_B = network.define_Gen(opt, direction='A2B')
         self.criterionDepthRange = network.MaskedL1Loss()
         if self.isTrain:
             self.disc = []
@@ -146,25 +147,25 @@ class SemiCycleGANModel(BaseModel, nn.Module):
             self.fake_depth_B, self.fake_semantic_A = self.netG_A(self.real_depth_A, self.real_img_A, return_logits=True)
         else:
             self.fake_depth_B = self.netG_A(self.real_depth_A, self.real_img_A)
-        self.fake_depth_A = self.netG_B(self.real_depth_B)
+        self.fake_depth_A = self.netG_B(self.real_depth_B, self.real_img_B)
         
         if self.opt.use_semi_cycle and self.isTrain:
             self.set_requires_grad([self.netG_B], False)
-            self.rec_depth_A = self.netG_B(self.fake_depth_B)
+            self.rec_depth_A = self.netG_B(self.fake_depth_B, self.real_img_A)
             self.set_requires_grad([self.netG_B], True)
             if self.opt.use_second_cycle:
                 self.set_requires_grad([self.netG_A], False)
                 self.rec_depth_B = self.netG_A(self.fake_depth_A, self.real_img_B)
                 self.set_requires_grad([self.netG_A], True)
         else:
-            self.rec_depth_A = self.netG_B(self.fake_depth_B)
+            self.rec_depth_A = self.netG_B(self.fake_depth_B, self.real_img_A)
             if self.opt.use_second_cycle:
                 self.rec_depth_B = self.netG_A(self.fake_depth_A, self.real_img_B)
             
         if self.isTrain:
             if self.opt.l_identity > 0:
                 self.idt_A = self.netG_A(self.real_depth_B, self.real_img_B)
-                self.idt_B = self.netG_B(self.real_depth_A)
+                self.idt_B = self.netG_B(self.real_depth_A, self.real_img_A)
                 
         
     def backward_D_base(self, netD, real, fake):
@@ -250,7 +251,6 @@ class SemiCycleGANModel(BaseModel, nn.Module):
         self.set_requires_grad(self.disc, False)
         for _ in range(self.opt.num_iter_gen):
             self.forward()
-#             self.optimizer_G.zero_grad()
             self.zero_grad([self.netG_A, self.netG_B])
             self.backward_G()
             self.optimizer_G.step()
@@ -260,7 +260,6 @@ class SemiCycleGANModel(BaseModel, nn.Module):
         for j in range(self.opt.num_iter_dis):
             if j > 0:
                 self.forward()
-#             self.optimizer_D.zero_grad()
             self.zero_grad(self.disc)
             self.backward_D_A()
             self.backward_D_B()

@@ -23,7 +23,7 @@ if __name__ == '__main__':
     torch.cuda.set_device(opt.gpu_ids[0])
     torch.backends.cudnn.deterministic = opt.deterministic
     torch.backends.cudnn.benchmark = not opt.deterministic
-    torch.autograd.set_detect_anomaly(True)
+#     torch.autograd.set_detect_anomaly(True)
     
     vis = Visualizer(opt)
     wandb.init(project="depth_super_res", name=opt.name)
@@ -51,7 +51,7 @@ if __name__ == '__main__':
                 wandb.log(model.get_current_losses(), step = global_iter)
             if global_iter % opt.img_freq == 0:
                 print('{} img procesed out of {}, taken {:04.2f} sec per 1 batch'.format((i+1)*opt.batch_size, dataset_size, iter_finish_time - iter_start_time))
-                fig = vis.plot_pretrain(model.get_current_vis())#vis.plot_img(model.get_current_vis())
+                fig = vis.plot_img(model.get_current_vis())#vis.plot_img(model.get_current_vis())plot_pretrain
                 wandb.log({"chart": fig}, step=global_iter)
                 plt.close(fig)
 
