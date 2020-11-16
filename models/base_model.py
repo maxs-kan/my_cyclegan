@@ -163,13 +163,6 @@ class BaseModel(ABC, torch.nn.Module):
             print('[Network %s] Total number of parameters : %.3f M' % (name, num_params / 1e6))
         print('-----------------------------------------------')
 
-    def check_nan(self):
-        for name in self.model_names:
-            assert isinstance(name, str), 'model_names  must be string'
-            net = getattr(self, name)
-            for param in net.parameters():
-                if torch.isnan(param).any():
-                    raise RuntimeError('NaN in param', name)
     
     def zero_grad(self, nets):
         if not isinstance(nets, list):
@@ -191,3 +184,27 @@ class BaseModel(ABC, torch.nn.Module):
             if net is not None:
                 for param in net.parameters():
                     param.requires_grad = requires_grad
+                    
+    def save_log(self):
+        torch.save(self.real_img_A, os.path.join(self.save_dir, 'img_A.pt'))
+        torch.save(self.real_depth_A, os.path.join(self.save_dir, 'depth_A.pt'))
+        torch.save(self.real_img_B, os.path.join(self.save_dir, 'img_B.pt'))
+        torch.save(self.real_depth_B, os.path.join(self.save_dir, 'depth_B.pt'))
+        self.save_net('Nan')
+        raise RuntimeError('NaN in param')
+        
+    def debug_grad(self):
+        for n in self.model_names:
+            net = getattr(self, n)
+            for name, param in net.named_parameters():
+                if not torch.isfinite(param.grad).all():
+                        print('NaN in {} parameters gradient of {}'.format(name, n))
+                        self.save_log()
+    
+    def debug_weighs(self):
+        for n in self.model_names:
+            net = getattr(self, n)
+            for name, param in net.named_parameters():
+                if not torch.isfinite(param).all():
+                        print('NaN in {} parameters of {}'.format(name, n))
+                        self.save_log()

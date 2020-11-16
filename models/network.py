@@ -39,6 +39,8 @@ def get_norm_layer(norm_type='instance'):
     """
     if norm_type == 'batch':
         norm_layer = functools.partial(nn.BatchNorm2d, affine=True, track_running_stats=True)
+    elif norm_type == 'group':
+        norm_layer = functools.partial(nn.GroupNorm, num_groups=16, affine=True)
     elif norm_type == 'instance':
         norm_layer = functools.partial(nn.InstanceNorm2d, affine=True, track_running_stats=False)
     elif norm_type == 'none':
@@ -103,7 +105,7 @@ def init_weights(net, init_type='normal', init_gain='relu', param=None):
                 raise NotImplementedError('initialization method [%s] is not implemented' % init_type)
             if hasattr(m, 'bias') and m.bias is not None:
                 init.constant_(m.bias.data, 0.0)
-        elif classname.find('BatchNorm2d') != -1:  # BatchNorm Layer's weight is not a matrix; only normal distribution applies.
+        elif hasattr(m, 'weight') and (m.weight is not None) and (classname.find('BatchNorm2d') != -1 or classname.find('InstanceNorm2d') != -1 or classname.find('GroupNorm') != -1): 
             init.normal_(m.weight.data, mean=1.0, std=0.02)
             init.constant_(m.bias.data, 0.0)
 
@@ -333,6 +335,7 @@ class MeanMatching(nn.Module):
 #             fake = torch.clamp(fake + dif, -1.0, 1.0) #+ torch.normal(mean=0., std=0.001, size=real.shape, device=real.device) #torch.normal(mean=dif, std=0.001)
             #fake = fake + torch.normal(mean=0., std=0.001, size=fake.shape, device=fake.device)
         return real, fake
+
 class MaskedL1Loss(nn.Module):
     def __init__(self):
         super(MaskedL1Loss, self).__init__()
@@ -511,13 +514,13 @@ class Encoder(nn.Module):
     def __init__(self, input_nc, base_nc, norm_layer, use_bias,  opt):
         super(Encoder, self).__init__()
         model = [nn.Conv2d(input_nc, base_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='replicate', bias=use_bias),
-                 norm_layer(base_nc),
+                 norm_layer(num_channels=base_nc),
                  nn.ReLU(True)
                 ]
         for i in range(opt.n_downsampling):
             mult = 2**i
             model += [nn.Conv2d(base_nc * mult, base_nc * mult * 2, kernel_size=4, stride=2, padding=1, dilation=1, padding_mode='replicate', bias=use_bias),
-                              norm_layer(base_nc * mult * 2),
+                              norm_layer(num_channels=base_nc * mult * 2),
                               nn.ReLU(True)]
             self.model = nn.Sequential(*model)
     def forward(self, x):
@@ -531,7 +534,7 @@ class Decoder(nn.Module):
             mult = 2 ** (opt.n_downsampling - i)
             model += [
                 up_layer(mult * base_nc, int(base_nc * mult / 2), use_bias=use_bias, opt=opt),
-                norm_layer(int(base_nc * mult / 2)),
+                norm_layer(num_channels=int(base_nc * mult / 2)),
                 nn.ReLU(True)]
         model += [nn.Conv2d(base_nc, output_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='replicate', bias=True)]
         if output == 'depth':
@@ -599,12 +602,12 @@ class ResnetBlock(nn.Module):
         conv_block = []
         pad = int(dilation * ( 3 - 1) / 2) ###kernel_size=3
         conv_block += [nn.Conv2d(dim, dim, kernel_size=3, stride=1, padding=pad, dilation=dilation, padding_mode='replicate', bias=use_bias),
-                       norm_layer(dim), 
+                       norm_layer(num_channels=dim), 
                        nn.ReLU(True)]
         if opt.dropout:
             conv_block += [nn.Dropout(0.5)]
         conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=pad, dilation=dilation, padding_mode='replicate', bias=use_bias), 
-                       norm_layer(dim)]
+                       norm_layer(num_channels=dim)]
         return nn.Sequential(*conv_block)
 
     def forward(self, x):

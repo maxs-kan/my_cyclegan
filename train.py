@@ -41,7 +41,6 @@ if __name__ == '__main__':
         for i, data in enumerate(dataset):
             iter_start_time = time.time()
             global_iter += 1
-    
             model.set_input(data)
             model.optimize_param()
 #             torch.cuda.empty_cache()
@@ -51,7 +50,7 @@ if __name__ == '__main__':
                 wandb.log(model.get_current_losses(), step = global_iter)
             if global_iter % opt.img_freq == 0:
                 print('{} img procesed out of {}, taken {:04.2f} sec per 1 batch'.format((i+1)*opt.batch_size, dataset_size, iter_finish_time - iter_start_time))
-                fig = vis.plot_img(model.get_current_vis())#vis.plot_img(model.get_current_vis())plot_pretrain
+                fig = vis.plot_pretrain(model.get_current_vis())#vis.plot_img(model.get_current_vis())plot_pretrain
                 wandb.log({"chart": fig}, step=global_iter)
                 plt.close(fig)
 

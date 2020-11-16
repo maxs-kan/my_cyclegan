@@ -90,11 +90,27 @@ class SemiCycleDataset(BaseDataset):
 #             B_depth = np.where(B_depth < 0, 0, B_depth)
         A_depth, A_img, A_semantic = self.transform(A_depth, A_img, A_semantic)
         B_depth, B_img, _ = self.transform(B_depth, B_img)
+#         if self.bad_img(A_depth, A_img, B_depth, B_img):
+#             print('Try new img')
+#             self.__getitem__(torch.randint(low=0, high=self.A_size, size=(1,)).item())
+#         else:
         if self.opt.use_semantic  and self.opt.isTrain:
             return {'A_depth': A_depth, 'A_img': A_img, 'A_semantic': A_semantic, 'A_name': A_img_n, 'B_depth': B_depth, 'B_img': B_img, 'B_name':B_img_n}
         else:
             return {'A_depth': A_depth, 'A_img': A_img, 'A_name': A_img_n, 'B_depth': B_depth, 'B_img': B_img, 'B_name':B_img_n}
+    def load_img(self):
         
+    
+    def bad_img(self, *imgs):
+        for i in imgs:
+            if not torch.isfinite(i).all():
+                print('NaN in img')
+                return True
+            elif torch.unique(i).shape[0] < 2:
+                print('All values are same')
+                return True
+        return False
+    
     def apply_transformer(self, transformations, img, depth, semantic=None):
         if semantic is not None:
             target = {
