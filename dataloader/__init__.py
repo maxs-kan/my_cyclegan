@@ -44,7 +44,7 @@ class Dataset_Dataloader():
     def __init__(self, opt):
         self.opt = opt
         dataset_class = find_dataset_using_name(opt.dataset_mode)
-        self.dataset = dataset_class(self.opt)
+        self.dataset = dataset_class(opt)
         print('Dataset {} was created'.format(type(self.dataset).__name__))
         self.dataloader = torch.utils.data.DataLoader(
             self.dataset,

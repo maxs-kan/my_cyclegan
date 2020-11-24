@@ -13,7 +13,7 @@ class BaseDataset(data.Dataset, ABC):
         self.root = opt.dataroot
         self.scale = self.opt.max_distance / 2
         self.IMG_EXTENSIONS = []
-        self.transforms = [A.Resize(height=self.opt.load_size_h, width=self.opt.load_size_w, interpolation=0, p=4)]
+        self.transforms = [A.Resize(height=self.opt.load_size_h, width=self.opt.load_size_w, interpolation=4, p=4)]
         self.dir_A = os.path.join(self.root, self.opt.phase + 'A')
         self.dir_B = os.path.join(self.root, self.opt.phase + 'B')
     
@@ -41,7 +41,13 @@ class BaseDataset(data.Dataset, ABC):
                     img = img[:,:,:3]
                 img = img.astype(np.float32)
 #                 img = (img-mean_i)/std_i
-                img = img / 127.5 - 1
+                img = img / 127.5 - 1.0
+                return img
+            elif img.dtype == np.float32:
+                if img.shape[2] > 3:
+                    img = img[:,:,:3]
+#                 img = (img-mean_i)/std_i
+                img = img / 127.5 - 1.0
                 return img
             else:
                 print(img.dtype)

@@ -5,13 +5,15 @@ import albumentations as A
 import imageio
 import torch
 
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES=True
+import torchvision.transforms as transforms_t
+
 class SemiCycleDataset(BaseDataset):
     
     @staticmethod
     def modify_commandline_options(parser, is_train):
         parser.add_argument('--max_distance', type=float, default=8000.0, help='all depth bigger will seted to this value')
-#         parser.add_argument('--change_mean', action='store_true', help='substract mean dif in dataset')
-#         parser.add_argument('--mean_dif', type=int, default=500, help='dif from B and A')
         if is_train:
             pass
         return parser
@@ -43,23 +45,22 @@ class SemiCycleDataset(BaseDataset):
         
         self.A_size = len(self.A_imgs)
         self.B_size = len(self.B_imgs)
-#         self.A_depth_mean = 1680.12084
-#         self.A_depth_std = 939.00824
-#         self.A_img_mean = 113.24237
-#         self.A_img_std = 73.10245
-        
-#         self.B_depth_mean = 2780.17593
-#         self.B_depth_std = 1332.59116
-#         self.B_img_mean = 158.19206
-#         self.B_img_std = 79.23506
                               
         
     def __getitem__(self, index):
+        
+        A_depth, A_img, A_semantic, B_depth, B_img, A_img_n, B_img_n = self.load_data(index)
+        if self.opt.use_semantic  and self.opt.isTrain:
+            return {'A_depth': A_depth, 'A_img': A_img, 'A_semantic': A_semantic, 'A_name': A_img_n, 'B_depth': B_depth, 'B_img': B_img, 'B_name':B_img_n}
+        else:
+            return {'A_depth': A_depth, 'A_img': A_img, 'A_name': A_img_n, 'B_depth': B_depth, 'B_img': B_img, 'B_name':B_img_n}
+    
+    def load_data(self, index):
         A_img_path = self.A_imgs[index]
         A_depth_path = self.A_depths[index]
         if self.opt.use_semantic and self.opt.isTrain:
             A_semantic_path = self.A_semantic[index]
-        if self.opt.isTrain or self.A_size != self.B_size:
+        if  self.A_size != self.B_size:
             index_B = torch.randint(low=0, high=self.B_size, size=(1,)).item()
         else:
             index_B = index
@@ -76,30 +77,27 @@ class SemiCycleDataset(BaseDataset):
         B_img_n = self.get_name(B_img_path)
         B_depth_n = self.get_name(B_depth_path)
         assert (B_img_n == B_depth_n), 'not pair img depth'
-        A_img = self.read_data(A_img_path)
-        B_img = self.read_data(B_img_path)
         A_depth = self.read_data(A_depth_path)
         B_depth = self.read_data(B_depth_path)
         if self.opt.use_semantic  and self.opt.isTrain:
             A_semantic = self.read_data(A_semantic_path)
         else:
             A_semantic = None
+            
+#         A_img = self.read_data(A_img_path)
+#         B_img = self.read_data(B_img_path)
+        A_img = Image.open(A_img_path).convert('RGB')
+        B_img = Image.open(B_img_path).convert('RGB')
         
-#         if self.opt.change_mean:
-#             B_depth = B_depth - self.opt.mean_dif
-#             B_depth = np.where(B_depth < 0, 0, B_depth)
         A_depth, A_img, A_semantic = self.transform(A_depth, A_img, A_semantic)
         B_depth, B_img, _ = self.transform(B_depth, B_img)
-#         if self.bad_img(A_depth, A_img, B_depth, B_img):
-#             print('Try new img')
-#             self.__getitem__(torch.randint(low=0, high=self.A_size, size=(1,)).item())
-#         else:
-        if self.opt.use_semantic  and self.opt.isTrain:
-            return {'A_depth': A_depth, 'A_img': A_img, 'A_semantic': A_semantic, 'A_name': A_img_n, 'B_depth': B_depth, 'B_img': B_img, 'B_name':B_img_n}
-        else:
-            return {'A_depth': A_depth, 'A_img': A_img, 'A_name': A_img_n, 'B_depth': B_depth, 'B_img': B_img, 'B_name':B_img_n}
-    def load_img(self):
         
+        if self.opt.isTrain:
+            if self.bad_img(A_depth, A_img, B_depth, B_img):
+                print('Try new img')
+                A_depth, A_img, A_semantic, B_depth, B_img, A_img_n, B_img_n = self.load_data(torch.randint(low=0, high=self.A_size, size=(1,)).item())
+        
+        return A_depth, A_img, A_semantic, B_depth, B_img, A_img_n, B_img_n
     
     def bad_img(self, *imgs):
         for i in imgs:
@@ -127,12 +125,16 @@ class SemiCycleDataset(BaseDataset):
     
     def add_base_transform(self):
         if self.opt.isTrain:
-            self.transforms.append(A.Rotate(p=0.5))
+            self.jitter = transforms_t.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1)
+            self.transforms.append(A.Rotate(limit = [-30,30], p=0.8))
             self.transforms.append(A.RandomCrop(height=self.opt.crop_size, width=self.opt.crop_size, p=1))
             self.transforms.append(A.HorizontalFlip(p=0.5))
-            self.transforms.append(A.VerticalFlip(p=0.5))
+#             self.transforms.append(A.VerticalFlip(p=0.5))
     
     def transform(self, depth, img, semantic=None):
+        if self.opt.isTrain:
+            img = self.jitter(img)
+        img = np.array(img).astype(np.float32)
         img = self.normalize_img(img)
         depth = self.normalize_depth(depth)
         transformed = self.apply_transformer(self.transforms, img, depth, semantic)
