@@ -40,9 +40,9 @@ def get_norm_layer(norm_type='instance'):
     if norm_type == 'batch':
         norm_layer = functools.partial(nn.BatchNorm2d, affine=True, track_running_stats=True)
     elif norm_type == 'group':
-        norm_layer = functools.partial(nn.GroupNorm, num_groups=16, affine=True)
+        norm_layer = lambda n_ch : nn.GroupNorm(num_groups=8, num_channels=n_ch, affine=True)#functools.partial(nn.GroupNorm, num_groups=8, affine=True)
     elif norm_type == 'instance':
-        norm_layer = functools.partial(nn.InstanceNorm2d, affine=True, track_running_stats=False)
+        norm_layer = functools.partial(nn.InstanceNorm2d, affine=False, track_running_stats=False)
     elif norm_type == 'none':
         def norm_layer(x): return Identity()
     else:
@@ -129,66 +129,6 @@ def init_net(net, init_type='normal', init_gain='relu', gpu_ids=[], param=None,)
         net = torch.nn.DataParallel(net, gpu_ids).cuda()  # multi-GPUs
     init_weights(net=net, init_type=init_type, init_gain=init_gain, param=param)
     return net
-
-def define_Gen(opt, direction):
-    net = Generator(opt, direction)
-    return init_net(net=net, init_type=opt.init_type, init_gain='relu', gpu_ids=opt.gpu_ids)
-
-def define_Unet(opt):
-    net = UnetGenerator(opt)
-    return init_net(net=net, init_type=opt.init_type, init_gain='relu', gpu_ids=opt.gpu_ids)
-
-def define_D(opt, input_type='depth'):
-    """Create a discriminator
-
-    Parameters:
-        input_nc (int)     -- the number of channels in input images
-        ndf (int)          -- the number of filters in the first conv layer
-        netD (str)         -- the architecture's name: basic | n_layers | pixel
-        n_layers_D (int)   -- the number of conv layers in the discriminator; effective when netD=='n_layers'
-        norm (str)         -- the type of normalization layers used in the network.
-        init_type (str)    -- the name of the initialization method.
-        init_gain (float)  -- scaling factor for normal, xavier and orthogonal.
-        gpu_ids (int list) -- which GPUs the network runs on: e.g., 0,1,2
-
-    Returns a discriminator
-
-    Our current implementation provides three types of discriminators:
-        [basic]: 'PatchGAN' classifier described in the original pix2pix paper.
-        It can classify whether 70×70 overlapping patches are real or fake.
-        Such a patch-level discriminator architecture has fewer parameters
-        than a full-image discriminator and can work on arbitrarily-sized images
-        in a fully convolutional fashion.
-
-        [n_layers]: With this mode, you can specify the number of conv layers in the discriminator
-        with the parameter <n_layers_D> (default=3 as used in [basic] (PatchGAN).)
-
-        [pixel]: 1x1 PixelGAN discriminator can classify whether a pixel is real or not.
-        It encourages greater color diversity but has no effect on spatial statistics.
-
-    The discriminator has been initialized by <init_net>. It uses Leakly RELU for non-linearity.
-    """
-    if input_type == 'depth':
-        input_nc = 1
-    elif input_type == 'normal':
-        input_nc = 3
-    elif input_type == 'depth_normal':
-        input_nc = 4
-    else:
-        raise NotImplementedError('Input for discriminator [%s] is not recognized' % input_type)
-    ndf  = opt.ndf
-    n_layers_D = opt.n_layers_D
-    norm_layer = get_norm_layer(norm_type=opt.norm)
-    net = None
-    if opt.netD == 'basic':  # default PatchGAN classifier
-        net = NLayerDiscriminator(input_nc, ndf, n_layers=3, norm_layer=norm_layer)
-    elif opt.netD == 'n_layers':  # more options
-        net = NLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer)
-    elif opt.netD == 'pixel':     # classify if each pixel is real or fake
-        net = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer)
-    else:
-        raise NotImplementedError('Discriminator model name [%s] is not recognized' % opt.netD)
-    return init_net(net=net, init_type=opt.init_type, init_gain='leaky_relu', gpu_ids=opt.gpu_ids, param=0.2)
 
 
 ##############################################################################
@@ -341,14 +281,38 @@ class MaskedL1Loss(nn.Module):
         super(MaskedL1Loss, self).__init__()
     def forward(self, x, y, mask):
         assert mask.dtype == torch.bool, 'mask shold be bool'
-        return torch.sum(torch.mul(torch.abs(y-x), mask)) / (mask.sum() + 1e-15)
+        return torch.div(torch.sum(torch.mul(torch.abs(torch.sub(y, x)), mask)), torch.add(torch.sum(mask), 1e-6))
+    
+class MaskedMeanDif(nn.Module):
+    def __init__(self):
+        super(MaskedMeanDif, self).__init__()
+    def forward(self, x, y, mask):
+        assert mask.dtype == torch.bool, 'mask shold be bool'
+        return torch.mean(torch.abs(torch.div(torch.sum(torch.mul(torch.sub(y, x), mask), dim=(2,3)), torch.add(torch.sum(mask, dim=(2,3)), 1e-6))))
     
 class MaskedLoss(nn.Module):
     def __init__(self):
         super(MaskedLoss, self).__init__()
     def forward(self, x, y, mask):
         assert mask.dtype == torch.bool, 'mask shold be bool'
-        return torch.sum(torch.mul(y-x, mask)) / (mask.sum() + 1e-15)
+        return torch.sum(torch.mul(y-x, mask)) / (mask.sum() + 1e-6)
+    
+class CosSimLoss(nn.Module):
+    def __init__(self):
+        super(CosSimLoss, self).__init__()
+        self.cos_sim = nn.CosineSimilarity(dim=1)
+    def forward(self, x, y):
+        return torch.mean(1 - self.cos_sim(x, y))
+    
+class MaskedCosSimLoss(nn.Module):
+    def __init__(self):
+        super(MaskedCosSimLoss, self).__init__()
+        self.cos_sim = nn.CosineSimilarity(dim=1)
+    def forward(self, x, y, mask):
+        assert mask.dtype == torch.bool, 'mask shold be bool'
+        loss = 1 - self.cos_sim(x, y)
+        return torch.div(torch.sum(torch.mul(loss.unsqueeze(1), mask)), torch.add(torch.sum(mask), 1e+6))
+        
     
 class SurfaceNormals(nn.Module):
     
@@ -360,7 +324,7 @@ class SurfaceNormals(nn.Module):
         dzdy = -self.gradient_for_normals(depth, axis=3)
         norm = torch.cat((dzdx, dzdy, torch.ones_like(depth)), dim=1)
         n = torch.norm(norm, p=2, dim=1, keepdim=True)
-        return norm / (n + 1e-15)
+        return torch.div(norm, torch.add(n, 1e-6))
     
     def gradient_for_normals(self, f, axis=None):
         N = f.ndim  # number of dimensions
@@ -406,7 +370,11 @@ class SurfaceNormals(nn.Module):
         # 1D equivalent -- out[-1] = (f[-1] - f[-2]) / (x[-1] - x[-2])
         out[tuple(slice1)] = (f[tuple(slice2)] - f[tuple(slice3)]) / dx_n
         return out
-
+    
+#######################################################################################
+def define_Unet(opt):
+    net = UnetGenerator(opt)
+    return init_net(net=net, init_type=opt.init_type, init_gain='relu', gpu_ids=opt.gpu_ids)
 class UnetGenerator(nn.Module):
     """Create a Unet-based generator"""
 
@@ -504,7 +472,7 @@ class UnetSkipConnectionBlock(nn.Module):
             return self.model(x)
         else:   # add skip connections
             return torch.cat([x, self.model(x)], 1)    
-    
+############################################################################################    
 
 
 class Encoder(nn.Module):
@@ -514,14 +482,14 @@ class Encoder(nn.Module):
     def __init__(self, input_nc, base_nc, norm_layer, use_bias,  opt):
         super(Encoder, self).__init__()
         model = [nn.Conv2d(input_nc, base_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='replicate', bias=use_bias),
-                 norm_layer(num_channels=base_nc),
+                 norm_layer(base_nc),
                  nn.ReLU(True)
                 ]
         for i in range(opt.n_downsampling):
             mult = 2**i
             model += [nn.Conv2d(base_nc * mult, base_nc * mult * 2, kernel_size=4, stride=2, padding=1, dilation=1, padding_mode='replicate', bias=use_bias),
-                              norm_layer(num_channels=base_nc * mult * 2),
-                              nn.ReLU(True)]
+                      norm_layer(base_nc * mult * 2),
+                      nn.ReLU(True)]
             self.model = nn.Sequential(*model)
     def forward(self, x):
         return self.model(x)
@@ -534,7 +502,7 @@ class Decoder(nn.Module):
             mult = 2 ** (opt.n_downsampling - i)
             model += [
                 up_layer(mult * base_nc, int(base_nc * mult / 2), use_bias=use_bias, opt=opt),
-                norm_layer(num_channels=int(base_nc * mult / 2)),
+                norm_layer(int(base_nc * mult / 2)),
                 nn.ReLU(True)]
         model += [nn.Conv2d(base_nc, output_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='replicate', bias=True)]
         if output == 'depth':
@@ -575,12 +543,16 @@ class UpTranspose(nn.Module):
         return self.resizeconv(x) + self.transposeconv(x)
     
 class ResnetBottlenec(nn.Module):
-    def __init__(self, base_nc, norm_layer, use_bias, opt):
+    def __init__(self, base_nc, n_blocks, norm_layer, use_bias, opt, use_dilation=False):
         super(ResnetBottlenec, self).__init__()       
         model = []
         mult = 2**opt.n_downsampling
-        for i in range(opt.n_blocks):       # add ResNet blocks
-            model += [ResnetBlock(dim=base_nc * mult, dilation=1, norm_layer=norm_layer, use_bias=use_bias, opt=opt),
+        for i in range(n_blocks):       # add ResNet blocks
+            if use_dilation:
+                dilation = min(2**i, 8)
+            else:
+                dilation = 1
+            model += [ResnetBlock(dim=base_nc * mult, dilation=dilation, norm_layer=norm_layer, use_bias=use_bias, opt=opt),
 #                      nn.ReLU(True)
                      ]#min(2**i, 16)
         self.model = nn.Sequential(*model)
@@ -602,47 +574,85 @@ class ResnetBlock(nn.Module):
         conv_block = []
         pad = int(dilation * ( 3 - 1) / 2) ###kernel_size=3
         conv_block += [nn.Conv2d(dim, dim, kernel_size=3, stride=1, padding=pad, dilation=dilation, padding_mode='replicate', bias=use_bias),
-                       norm_layer(num_channels=dim), 
+                       norm_layer(dim), 
                        nn.ReLU(True)]
         if opt.dropout:
             conv_block += [nn.Dropout(0.5)]
         conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=pad, dilation=dilation, padding_mode='replicate', bias=use_bias), 
-                       norm_layer(num_channels=dim)]
+                       norm_layer(dim)]
         return nn.Sequential(*conv_block)
 
     def forward(self, x):
         """Forward function (with skip connections)"""
         out = x + self.conv_block(x)  # add skip connections
         return out
-    
+
+def define_Gen(opt, input_type, out_type='depth'):
+    use_bias = opt.norm == 'instance'
+    if input_type == 'img' and out_type == 'feature':
+        net = GeneratorI_F(opt, use_bias)
+    elif input_type == 'feature' and out_type == 'depth':
+        net = GeneratorF_D(opt, use_bias)
+    else:
+        net = Generator(opt, input_type, use_bias)
+    return init_net(net=net, init_type=opt.init_type, init_gain='relu', gpu_ids=opt.gpu_ids)
+
+class GeneratorI_F(nn.Module):
+    def __init__(self, opt, use_bias):
+        super(GeneratorI_F, self).__init__()
+        norm_layer = get_norm_layer(norm_type=opt.norm)
+        self.opt = opt
+        base_nc = opt.ngf_img_feature
+        self.enc = Encoder(input_nc=opt.input_nc_img, base_nc=base_nc, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
+        self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks = 6, norm_layer=norm_layer, use_bias=use_bias, opt=opt, use_dilation=True)
+    def forward(self, x):
+        x = self.enc(x)
+        return self.bottlenec(x)
+
+class GeneratorF_D(nn.Module):
+    def __init__(self, opt, use_bias):
+        super(GeneratorF_D, self).__init__()
+        norm_layer = get_norm_layer(norm_type=opt.norm)
+        up_layer = get_upsampling(upsampling_type=opt.upsampling_type)
+        self.opt = opt
+        base_nc = opt.ngf_img_feature
+        self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks = 9, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
+        self.dec = Decoder(base_nc=base_nc, output_nc=opt.output_nc_depth, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='depth')
+    def forward(self, x):
+        x = self.bottlenec(x)
+        return self.dec(x)
+
 class Generator(nn.Module):
-    def __init__(self, opt, direction):
+    def __init__(self, opt, input_type, use_bias):
         super(Generator, self).__init__()
-        self.direction = direction
+        self.input_type = input_type
         self.opt = opt
         norm_layer = get_norm_layer(norm_type=opt.norm)
         up_layer = get_upsampling(upsampling_type=opt.upsampling_type)
-        if type(norm_layer) == functools.partial:
-            use_bias = False#norm_layer.func == nn.InstanceNorm2d
-        else:
-            use_bias = False#norm_layer == nn.InstanceNorm2d
-        if self.direction == 'A2B':
-            base_nc = opt.ngf_img+opt.ngf_depth
+        if self.input_type == 'img_depth':
+            base_nc = opt.ngf_img + opt.ngf_depth
             self.enc_img = Encoder(input_nc=opt.input_nc_img, base_nc=opt.ngf_img, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
             self.enc_depth = Encoder(input_nc=opt.input_nc_depth, base_nc=opt.ngf_depth, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
-            self.bottlenec = ResnetBottlenec(base_nc=base_nc, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
+            self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks = opt.n_blocks, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
             if opt.use_semantic:
                 self.dec_img = Decoder(base_nc=base_nc, output_nc=opt.output_nc_img, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='semantic')
             self.dec_depth = Decoder(base_nc=base_nc, output_nc=opt.output_nc_depth, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='depth')
-        elif self.direction == 'B2A':
+        elif self.input_type == 'depth':
             base_nc = opt.ngf_depth * 2
             self.enc_depth = Encoder(input_nc=opt.input_nc_depth, base_nc=base_nc, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
-            self.bottlenec = ResnetBottlenec(base_nc=base_nc, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
+            self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks = opt.n_blocks, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
+            self.dec_depth = Decoder(base_nc=base_nc, output_nc=opt.output_nc_depth, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='depth')
+        elif self.input_type == 'img_feature_depth':
+            base_nc = opt.ngf_img_feature + opt.ngf_depth
+            self.enc_depth = Encoder(input_nc=opt.input_nc_depth, base_nc=opt.ngf_depth, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
+            self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks=opt.n_blocks, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
+#             if opt.use_semantic:
+#                 self.dec_img = Decoder(base_nc=base_nc, output_nc=opt.output_nc_img, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='semantic')
             self.dec_depth = Decoder(base_nc=base_nc, output_nc=opt.output_nc_depth, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='depth')
         else:
-            raise NotImplementedError('Specify direction')
+            raise NotImplementedError('Specify input type')
     def forward(self, depth, img=None, return_logits=False):
-        if self.direction == 'A2B':
+        if self.input_type == 'img_depth':
             img = self.enc_img(img)
             depth = self.enc_depth(depth)
             x = self.bottlenec(depth, img)
@@ -652,17 +662,78 @@ class Generator(nn.Module):
                 return depth, logits
             else:
                 return depth
-        elif self.direction == 'B2A':
+        elif self.input_type == 'depth':
             depth = self.enc_depth(depth)
             depth = self.bottlenec(depth)
             return self.dec_depth(depth)
+        elif self.input_type == 'img_feature_depth':
+            depth = self.enc_depth(depth)
+            x = self.bottlenec(depth, img)
+            depth = self.dec_depth(x)
+            return depth
         else:
             raise NotImplementedError('specify direction')
-    
+            
+################################################################################
+
+def define_D(opt, input_type='depth'):
+    """Create a discriminator
+
+    Parameters:
+        input_nc (int)     -- the number of channels in input images
+        ndf (int)          -- the number of filters in the first conv layer
+        netD (str)         -- the architecture's name: basic | n_layers | pixel
+        n_layers_D (int)   -- the number of conv layers in the discriminator; effective when netD=='n_layers'
+        norm (str)         -- the type of normalization layers used in the network.
+        init_type (str)    -- the name of the initialization method.
+        init_gain (float)  -- scaling factor for normal, xavier and orthogonal.
+        gpu_ids (int list) -- which GPUs the network runs on: e.g., 0,1,2
+
+    Returns a discriminator
+
+    Our current implementation provides three types of discriminators:
+        [basic]: 'PatchGAN' classifier described in the original pix2pix paper.
+        It can classify whether 70×70 overlapping patches are real or fake.
+        Such a patch-level discriminator architecture has fewer parameters
+        than a full-image discriminator and can work on arbitrarily-sized images
+        in a fully convolutional fashion.
+
+        [n_layers]: With this mode, you can specify the number of conv layers in the discriminator
+        with the parameter <n_layers_D> (default=3 as used in [basic] (PatchGAN).)
+
+        [pixel]: 1x1 PixelGAN discriminator can classify whether a pixel is real or not.
+        It encourages greater color diversity but has no effect on spatial statistics.
+
+    The discriminator has been initialized by <init_net>. It uses Leakly RELU for non-linearity.
+    """
+    if input_type == 'depth':
+        input_nc = 1
+    elif input_type == 'normal':
+        input_nc = 3
+    elif input_type == 'depth_normal':
+        input_nc = 4
+    else:
+        raise NotImplementedError('Input for discriminator [%s] is not recognized' % input_type)
+    ndf  = opt.ndf
+    n_layers_D = opt.n_layers_D
+    norm_layer = get_norm_layer(norm_type=opt.norm)
+    net = None
+    use_bias = opt.norm == 'instance'
+    if opt.netD == 'basic':  # default PatchGAN classifier
+        net = NLayerDiscriminator(input_nc, ndf, n_layers=3, norm_layer=norm_layer, use_bias=use_bias)
+    elif opt.netD == 'n_layers':  # more options
+        net = NLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer, use_bias=use_bias)
+    elif opt.netD == 'pixel':     # classify if each pixel is real or fake
+        net = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer)
+    else:
+        raise NotImplementedError('Discriminator model name [%s] is not recognized' % opt.netD)
+    return init_net(net=net, init_type=opt.init_type, init_gain='leaky_relu', gpu_ids=opt.gpu_ids, param=0.2)
+
+            
 class NLayerDiscriminator(nn.Module):
     """Defines a PatchGAN discriminator"""
 
-    def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d):
+    def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d, use_bias=False):
         """Construct a PatchGAN discriminator
 
         Parameters:
@@ -672,10 +743,6 @@ class NLayerDiscriminator(nn.Module):
             norm_layer      -- normalization layer
         """
         super(NLayerDiscriminator, self).__init__()
-        if type(norm_layer) == functools.partial:  # no need to use bias as BatchNorm2d has affine parameters
-            use_bias = norm_layer.func == nn.InstanceNorm2d
-        else:
-            use_bias = norm_layer == nn.InstanceNorm2d
 
         kw = 4
         padw = 1

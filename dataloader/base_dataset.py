@@ -24,10 +24,10 @@ class BaseDataset(data.Dataset, ABC):
         for f in files:
             assert any(f.endswith(extension) for extension in self.IMG_EXTENSIONS), 'not implemented file extntion type {}'.format(f.split('.')[1])
         
-    def get_paths(self, dir):
+    def get_paths(self, dir, reverse=False):
         files = []
         assert os.path.isdir(dir), '{} is not a valid directory'.format(dir)
-        files = sorted(glob.glob(os.path.join(dir, '**/*.*'), recursive=True))
+        files = sorted(glob.glob(os.path.join(dir, '**/*.*'), recursive=True), reverse=reverse)
         return files[:min(self.opt.max_dataset_size, len(files))]
     
     def get_name(self, file_path):
@@ -43,12 +43,11 @@ class BaseDataset(data.Dataset, ABC):
 #                 img = (img-mean_i)/std_i
                 img = img / 127.5 - 1.0
                 return img
-            elif img.dtype == np.float32:
-                if img.shape[2] > 3:
-                    img = img[:,:,:3]
-#                 img = (img-mean_i)/std_i
-                img = img / 127.5 - 1.0
-                return img
+#             elif img.dtype == np.float32:
+#                 if img.shape[2] > 3:
+#                     img = img[:,:,:3]
+#                 img = img / 127.5 - 1.0
+#                 return img
             else:
                 print(img.dtype)
                 raise AssertionError('Img datatype')

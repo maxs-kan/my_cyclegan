@@ -22,12 +22,12 @@ class SemiCycleDataset(BaseDataset):
         super().__init__(opt)
         self.add_extensions(['.png', '.jpg'])
         self.add_base_transform()
-        self.dir_A_img = os.path.join(self.dir_A, 'img')
-        self.dir_A_depth = os.path.join(self.dir_A, 'depth')
+        self.dir_A_img = os.path.join(self.dir_A, 'img') 
+        self.dir_A_depth = os.path.join(self.dir_A, 'depth') 
         if self.opt.use_semantic and self.opt.isTrain:
             self.dir_A_semantic = os.path.join(self.dir_A, 'semantic')
-        self.dir_B_img = os.path.join(self.dir_B, 'img')
-        self.dir_B_depth = os.path.join(self.dir_B, 'depth')
+        self.dir_B_img = os.path.join(self.dir_B, 'img') 
+        self.dir_B_depth = os.path.join(self.dir_B, 'depth') 
 
         self.A_imgs = self.get_paths(self.dir_A_img)
         self.A_depths = self.get_paths(self.dir_A_depth)
@@ -38,8 +38,8 @@ class SemiCycleDataset(BaseDataset):
         else:
             assert (len(self.A_imgs) == len(self.A_depths)), 'not pair img depth' 
             self.is_image_files(self.A_imgs + self.A_depths)
-        self.B_imgs = self.get_paths(self.dir_B_img)
-        self.B_depths = self.get_paths(self.dir_B_depth)
+        self.B_imgs = self.get_paths(self.dir_B_img, reverse=True)
+        self.B_depths = self.get_paths(self.dir_B_depth, reverse=True)
         assert (len(self.B_imgs) == len(self.B_depths)), 'not pair img depth'
         self.is_image_files(self.B_imgs + self.B_depths)
         
@@ -84,10 +84,10 @@ class SemiCycleDataset(BaseDataset):
         else:
             A_semantic = None
             
-#         A_img = self.read_data(A_img_path)
-#         B_img = self.read_data(B_img_path)
-        A_img = Image.open(A_img_path).convert('RGB')
-        B_img = Image.open(B_img_path).convert('RGB')
+        A_img = self.read_data(A_img_path)
+        B_img = self.read_data(B_img_path)
+#         A_img = Image.open(A_img_path).convert('RGB')
+#         B_img = Image.open(B_img_path).convert('RGB')
         
         A_depth, A_img, A_semantic = self.transform(A_depth, A_img, A_semantic)
         B_depth, B_img, _ = self.transform(B_depth, B_img)
@@ -125,16 +125,16 @@ class SemiCycleDataset(BaseDataset):
     
     def add_base_transform(self):
         if self.opt.isTrain:
-            self.jitter = transforms_t.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1)
-            self.transforms.append(A.Rotate(limit = [-30,30], p=0.8))
-            self.transforms.append(A.RandomCrop(height=self.opt.crop_size, width=self.opt.crop_size, p=1))
+#             self.jitter = transforms_t.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1)
+#             self.transforms.append(A.Rotate(limit = [-30,30], p=0.8))
+            self.transforms.append(A.RandomCrop(height=self.opt.crop_size_h, width=self.opt.crop_size_w, p=1))
             self.transforms.append(A.HorizontalFlip(p=0.5))
-#             self.transforms.append(A.VerticalFlip(p=0.5))
+            self.transforms.append(A.VerticalFlip(p=0.5))
     
     def transform(self, depth, img, semantic=None):
-        if self.opt.isTrain:
-            img = self.jitter(img)
-        img = np.array(img).astype(np.float32)
+#         if self.opt.isTrain:
+#             img = self.jitter(img)
+#         img = np.array(img).astype(np.float32)
         img = self.normalize_img(img)
         depth = self.normalize_depth(depth)
         transformed = self.apply_transformer(self.transforms, img, depth, semantic)

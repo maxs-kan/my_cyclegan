@@ -41,7 +41,8 @@ def data_to_meters(input, opt):
     input = input * scale + scale
     input /= 1000.0
     return input
-
+def torch2np(input):
+    return input.cpu().permute(0,2,3,1).numpy()[:,:,:,0]
 
 def tensor2im(input, opt, isDepth = True):
     """"Converts a Tensor array into a numpy image array in meters.

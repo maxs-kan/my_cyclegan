@@ -29,6 +29,27 @@ class BaseModel(ABC, torch.nn.Module):
     def optimize_param(self):
         pass
 
+    def pad_mask(self, hole_mask):
+        '''
+        Pad 2 pixel in each dimension
+        '''
+        hole_mask[:,:,:-1,:]+=hole_mask[:,:,1:,:].clone()
+        hole_mask[:,:,:-1,:]+=hole_mask[:,:,1:,:].clone()
+        
+        hole_mask[:,:,1:,:]+=hole_mask[:,:,:-1,:].clone()
+        hole_mask[:,:,1:,:]+=hole_mask[:,:,:-1,:].clone()
+        
+        hole_mask[:,:,:,:-1]+=hole_mask[:,:,:,1:].clone()
+        hole_mask[:,:,:,:-1]+=hole_mask[:,:,:,1:].clone()
+        
+        hole_mask[:,:,:,1:]+=hole_mask[:,:,:,:-1].clone()
+        hole_mask[:,:,:,1:]+=hole_mask[:,:,:,:-1].clone()
+        return hole_mask
+    
+    def get_mask(self, input):
+        hole_mask = input <= self.hole_border
+        hole_mask = self.pad_mask(hole_mask)
+        return hole_mask
     
     def setup(self):
         if self.isTrain:
@@ -36,25 +57,55 @@ class BaseModel(ABC, torch.nn.Module):
         if not self.isTrain or self.opt.continue_train:
             load_suffix = 'iter_%d' % self.opt.load_iter if self.opt.load_iter > 0 else self.opt.load_epoch
             self.load_networks(load_suffix)
-        elif self.opt.use_petrain_weights:
+        elif self.opt.use_pretrain_weights:
             load_suffix = self.opt.load_epoch_weights
             self.load_weights(load_suffix)
+        if self.opt.use_pretrain_img2depth:
+            self.load_img2depth()
         self.print_networks()
     
-    def load_weights(self, epoch):
-        load_filename = '%s.pt' % (epoch)
-        load_path = os.path.join(self.opt.weights_dir, load_filename)
+    def load_img2depth(self):
+        load_filename = '%s.pt' % (self.opt.load_epoch_img2depth)
+        load_path = os.path.join(self.opt.img2depth_dir, load_filename)
         checkpoint = torch.load(load_path, map_location=self.device)
-        for name in  ['netG_A', 'netG_B']:
+        for name in  self.extra_model:
             assert isinstance(name, str), 'model name must be str'
             net = getattr(self, name)
             if isinstance(net, torch.nn.DataParallel):
                 net = net.module
-            print('loading the model from %s' % load_path)
+            print('loading the model {} from {}'.format(name, load_path))
             state_dict = checkpoint[name]
             if hasattr(state_dict, '_metadata'):
                 del state_dict._metadata
             net.load_state_dict(state_dict)
+            self.set_requires_grad([net], requires_grad=False)
+            net.eval()
+    
+    def load_weights(self, epoch):
+        load_filename = '%s.pt' % (epoch)
+        load_path_A = os.path.join(self.opt.weights_dir_A, load_filename)
+        checkpoint_A = torch.load(load_path_A, map_location=self.device)
+        load_path_B = os.path.join(self.opt.weights_dir_B, load_filename)
+        checkpoint_B = torch.load(load_path_B, map_location=self.device)
+#         for name in  ['netG_A', 'netG_B']:
+#             assert isinstance(name, str), 'model name must be str'
+        net_A = getattr(self, 'netG_A')
+        if isinstance(net_A, torch.nn.DataParallel):
+            net_A = net_A.module
+        print('loading the model {} from {}'.format('netG_A', load_path_A))
+        state_dict_A = checkpoint_A['netG_A']
+        if hasattr(state_dict_A, '_metadata'):
+            del state_dict_A._metadata
+        net_A.load_state_dict(state_dict_A)
+        
+        net_B = getattr(self, 'netG_B')
+        if isinstance(net_B, torch.nn.DataParallel):
+            net_B = net_B.module
+        print('loading the model {} from {}'.format('netG_B', load_path_B))
+        state_dict_B = checkpoint_B['netG_B']
+        if hasattr(state_dict_B, '_metadata'):
+            del state_dict_B._metadata
+        net_B.load_state_dict(state_dict_B)
     
     def train_mode(self):
         for name in self.model_names:
@@ -94,6 +145,13 @@ class BaseModel(ABC, torch.nn.Module):
         for name in self.loss_names:
             assert isinstance(name, str), 'loss name must be str'
             loss_dict[name] = float(getattr(self, 'loss_' + name))
+        return loss_dict
+    
+    def get_current_losses_test(self):
+        loss_dict = OrderedDict()
+        for name in self.loss_names_test:
+            assert isinstance(name, str), 'loss name must be str'
+            loss_dict['test_' + name] = float(getattr(self, 'test_' + name))
         return loss_dict
     
     def save_net(self, epoch):
