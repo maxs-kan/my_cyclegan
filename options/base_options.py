@@ -81,6 +81,7 @@ class BaseOptions():
         parser.add_argument('--crop_size_w', type=int, default=320, help='then crop to this size')
         parser.add_argument('--hole_border', type=float, default=-0.97, help='value of holes')
         parser.add_argument('--l_normal', type=float, default=10., help='weight for normals cycle loss')
+        parser.add_argument('--l_hole_A', type=float, default=0.0, help='weight for mean_dif for B')
 
         # additional parameters
         parser.add_argument('--deterministic', action='store_true', default=False, help='deterministic of cudnn, if true maybe slower')

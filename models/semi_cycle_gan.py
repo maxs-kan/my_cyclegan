@@ -31,7 +31,6 @@ class SemiCycleGANModel(BaseModel, nn.Module):
         parser.add_argument('--l_depth_B_end', type=float, default=0.0, help='finish of depth range loss')
         parser.add_argument('--l_mean_A', type=float, default=0.0, help='weight for mean_dif for A')
         parser.add_argument('--l_mean_B', type=float, default=0.0, help='weight for mean_dif for B')
-        parser.add_argument('--l_hole_A', type=float, default=0.0, help='weight for mean_dif for B')
         parser.add_argument('--l_max_iter', type=int, default=5000, help='max iter with big depth rec. loss')
         parser.add_argument('--l_num_iter', type=int, default=5000, help='max iter with big depth rec. loss')
         parser.add_argument('--num_iter_gen', type=int, default=1, help='iteration of gen per 1 iter of dis')
@@ -243,7 +242,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
     def backward_D_base(self, netD, real, fake):
         pred_real = netD(real)
         pred_fake = netD(fake.detach())
-        loss_D = 0.5 * (self.criterionGAN(pred_real, True) + self.criterionGAN(pred_fake, False))
+        loss_D = 0.5 * (self.criterionGAN(pred_real, True) + 0.5 * self.criterionGAN(pred_fake, False))
         loss_D.backward()
         return loss_D
     
