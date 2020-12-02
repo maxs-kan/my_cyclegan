@@ -10,8 +10,7 @@ class PreTrainModel(BaseModel, nn.Module):
     @staticmethod
     def modify_commandline_options(parser, is_train):
         if is_train:
-            parser.add_argument('--lr_G_A', type=float, default=0.0002, help='lerning rate for G_A')
-            parser.add_argument('--lr_G_B', type=float, default=0.0002, help='lerning rate for G_B')
+            pass
         return parser
     
     def __init__(self, opt):

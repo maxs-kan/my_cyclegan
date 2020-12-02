@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import init
+from torch.nn.utils import spectral_norm
 import functools
 from torch.optim import lr_scheduler
 import numpy as np
@@ -103,9 +104,9 @@ def init_weights(net, init_type='normal', init_gain='relu', param=None):
                 init.orthogonal_(m.weight.data, gain=init.calculate_gain(init_gain, param))
             else:
                 raise NotImplementedError('initialization method [%s] is not implemented' % init_type)
-            if hasattr(m, 'bias') and m.bias is not None:
+            if hasattr(m, 'bias') and m.bias is not None: 
                 init.constant_(m.bias.data, 0.0)
-        elif hasattr(m, 'weight') and (m.weight is not None) and (classname.find('BatchNorm2d') != -1 or classname.find('InstanceNorm2d') != -1 or classname.find('GroupNorm') != -1): 
+        elif hasattr(m, 'weight') and (m.weight is not None) and (classname.find('Norm') != -1): 
             init.normal_(m.weight.data, mean=1.0, std=0.02)
             init.constant_(m.bias.data, 0.0)
 
@@ -125,8 +126,7 @@ def init_net(net, init_type='normal', init_gain='relu', gpu_ids=[], param=None,)
     """
     if len(gpu_ids) > 0:
         assert(torch.cuda.is_available())
-#         net.to('cuda:{}'.format(gpu_ids[0]))
-        net = torch.nn.DataParallel(net, gpu_ids).cuda()  # multi-GPUs
+        net = torch.nn.DataParallel(net, gpu_ids).cuda()
     init_weights(net=net, init_type=init_type, init_gain=init_gain, param=param)
     return net
 
@@ -564,7 +564,6 @@ class ResnetBottlenec(nn.Module):
         return self.model(input)
 
 class ResnetBlock(nn.Module):
-    """Define a Resnet block"""
 
     def __init__(self, dim, dilation, norm_layer, use_bias, opt):
         super(ResnetBlock, self).__init__()
@@ -716,9 +715,9 @@ def define_D(opt, input_type='depth'):
         raise NotImplementedError('Input for discriminator [%s] is not recognized' % input_type)
     ndf  = opt.ndf
     n_layers_D = opt.n_layers_D
-    norm_layer = get_norm_layer(norm_type=opt.norm)
+    norm_layer = get_norm_layer(norm_type=opt.norm_d)
     net = None
-    use_bias = opt.norm == 'instance'
+    use_bias = opt.norm_d == 'instance'
     if opt.netD == 'basic':  # default PatchGAN classifier
         net = NLayerDiscriminator(input_nc, ndf, n_layers=3, norm_layer=norm_layer, use_bias=use_bias)
     elif opt.netD == 'n_layers':  # more options
@@ -727,9 +726,22 @@ def define_D(opt, input_type='depth'):
         net = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer)
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % opt.netD)
-    return init_net(net=net, init_type=opt.init_type, init_gain='leaky_relu', gpu_ids=opt.gpu_ids, param=0.2)
+    net = init_net(net=net, init_type=opt.init_type, init_gain='leaky_relu', gpu_ids=opt.gpu_ids, param=0.2)
+    
+    if opt.use_spnorm:
+        if opt.norm_d != 'none':
+            print('Warning use spectral normalization with some network normalization')
+        net.apply(add_spnorm)
+    
+    return net
 
-            
+def add_spnorm(m):
+    classname = m.__class__.__name__
+    if hasattr(m, 'weight') and (classname.find('Conv') != -1 or classname.find('Linear') != -1):
+        return spectral_norm(m)
+    else:
+        return m      
+
 class NLayerDiscriminator(nn.Module):
     """Defines a PatchGAN discriminator"""
 
