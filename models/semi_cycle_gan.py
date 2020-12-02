@@ -242,7 +242,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
     def backward_D_base(self, netD, real, fake):
         pred_real = netD(real)
         pred_fake = netD(fake.detach())
-        loss_D = 0.5 * (self.criterionGAN(pred_real, True) + 0.5 * self.criterionGAN(pred_fake, False))
+        loss_D = 0.5 * (self.criterionGAN(pred_real, True) + self.criterionGAN(pred_fake, False))
         loss_D.backward()
         return loss_D
     
