@@ -25,9 +25,11 @@ class PreTrainModel(BaseModel, nn.Module):
                               'fake_depth_B', 'fake_norm_B', 'hole_mask_A']
             
         self.model_names = ['netG_A', 'netG_B']
-        
-        self.netG_A = network.define_Gen(opt, input_type='img_feature_depth')
-        self.netG_B = network.define_Gen(opt, input_type='depth')
+        if opt.use_pretrain_img2depth:
+            self.netG_A = network.define_Gen(opt, input_type='img_feature_depth')
+        else:
+            self.netG_A = network.define_Gen(opt, input_type='img_depth')
+        self.netG_B = network.define_Gen(opt, input_type=opt.inp_B)
         
         ### Image2Depth 
         self.extra_model = ['netG_F', 'netG_D']
@@ -95,8 +97,9 @@ class PreTrainModel(BaseModel, nn.Module):
         self.optimizer_G.step()
         
     def calc_test_loss(self):
-        self.test_depth_dif_A = self.criterionMaskedL1(util.data_to_meters(self.real_depth_A, self.opt), util.data_to_meters(self.fake_depth_A, self.opt), ~self.hole_mask_A)
-        self.test_depth_dif_B = self.criterionL1(util.data_to_meters(self.real_depth_B, self.opt), util.data_to_meters(self.fake_depth_B, self.opt))
+        with torch.no_grad():
+            self.test_depth_dif_A = self.criterionMaskedL1(util.data_to_meters(self.real_depth_A, self.opt), util.data_to_meters(self.fake_depth_A, self.opt), ~self.hole_mask_A)
+            self.test_depth_dif_B = self.criterionL1(util.data_to_meters(self.real_depth_B, self.opt), util.data_to_meters(self.fake_depth_B, self.opt))
                 
     def update_loss_weight(self, global_iter):
         pass

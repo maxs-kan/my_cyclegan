@@ -83,29 +83,21 @@ class BaseModel(ABC, torch.nn.Module):
     
     def load_weights(self, epoch):
         load_filename = '%s.pt' % (epoch)
-        load_path_A = os.path.join(self.opt.weights_dir_A, load_filename)
-        checkpoint_A = torch.load(load_path_A, map_location=self.device)
-        load_path_B = os.path.join(self.opt.weights_dir_B, load_filename)
-        checkpoint_B = torch.load(load_path_B, map_location=self.device)
-#         for name in  ['netG_A', 'netG_B']:
-#             assert isinstance(name, str), 'model name must be str'
-        net_A = getattr(self, 'netG_A')
-        if isinstance(net_A, torch.nn.DataParallel):
-            net_A = net_A.module
-        print('loading the model {} from {}'.format('netG_A', load_path_A))
-        state_dict_A = checkpoint_A['netG_A']
-        if hasattr(state_dict_A, '_metadata'):
-            del state_dict_A._metadata
-        net_A.load_state_dict(state_dict_A)
-        
-        net_B = getattr(self, 'netG_B')
-        if isinstance(net_B, torch.nn.DataParallel):
-            net_B = net_B.module
-        print('loading the model {} from {}'.format('netG_B', load_path_B))
-        state_dict_B = checkpoint_B['netG_B']
-        if hasattr(state_dict_B, '_metadata'):
-            del state_dict_B._metadata
-        net_B.load_state_dict(state_dict_B)
+        load_path = os.path.join(self.opt.weights_dir, load_filename)
+        checkpoint = torch.load(load_path, map_location=self.device)
+        for name in self.model_names:
+            assert isinstance(name, str), 'model name must be str'
+            net = getattr(self, name)
+            if isinstance(net, torch.nn.DataParallel):
+                net = net.module
+            try:
+                state_dict = checkpoint[name]
+            except:
+                continue
+            print('loading the model {} from {}'.format(name, load_path))
+            if hasattr(state_dict, '_metadata'):
+                del state_dict._metadata
+            net.load_state_dict(state_dict)
     
     def train_mode(self):
         for name in self.model_names:

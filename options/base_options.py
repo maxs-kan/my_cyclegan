@@ -27,8 +27,7 @@ class BaseOptions():
         parser.add_argument('--debug', action='store_true', default=False, help='debug mode, no wandb')
         
         parser.add_argument('--checkpoints_dir', type=str, default='./checkpoints', help='models are saved here')
-        parser.add_argument('--weights_dir_A', type=str, default='./checkpoints/pretrain_A/', help='pretrain weights')
-        parser.add_argument('--weights_dir_B', type=str, default='./checkpoints/pretrain_weights_imgdepht/', help='pretrain weights')
+        parser.add_argument('--weights_dir', type=str, default='./checkpoints/pretrain_weights_imgdepht/', help='pretrain weights')
         parser.add_argument('--img2depth_dir', type=str, default='./checkpoints/img2d_pretrain/', help='pretrain weights')
         
         # model parameters
