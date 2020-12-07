@@ -48,7 +48,7 @@ class BaseModel(ABC, torch.nn.Module):
     
     def get_mask(self, input):
         hole_mask = input <= self.hole_border
-        hole_mask = self.pad_mask(hole_mask)
+#         hole_mask = self.pad_mask(hole_mask)
         return hole_mask
     
     def setup(self):

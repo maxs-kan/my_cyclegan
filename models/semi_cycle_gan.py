@@ -31,6 +31,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
         parser.add_argument('--l_depth_B_end', type=float, default=0.0, help='finish of depth range loss')
         parser.add_argument('--l_mean_A', type=float, default=0.0, help='weight for mean_dif for A')
         parser.add_argument('--l_mean_B', type=float, default=0.0, help='weight for mean_dif for B')
+        parser.add_argument('--l_tv_A', type=float, default=0.0, help='weight for mean_dif for B')
         parser.add_argument('--l_max_iter', type=int, default=5000, help='max iter with big depth rec. loss')
         parser.add_argument('--l_num_iter', type=int, default=5000, help='max iter with big depth rec. loss')
         parser.add_argument('--num_iter_gen', type=int, default=1, help='iteration of gen per 1 iter of dis')
@@ -66,6 +67,8 @@ class SemiCycleGANModel(BaseModel, nn.Module):
                 self.loss_names.extend(['depth_range_A'])
             if opt.l_depth_B_begin > 0:
                 self.loss_names.extend(['depth_range_B'])
+            if opt.l_tv_A > 0:
+                self.loss_names.extend(['tv_norm_A'])
             if opt.use_semantic:
                 self.loss_names.extend(['rec_semantic_A'])
         self.loss_names_test = ['depth_dif_A', 'depth_dif_B'] 
@@ -128,6 +131,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
             self.criterionMeanDif = network.MaskedMeanDif()
             self.criterionCosSim = network.CosSimLoss()
             self.criterionMaskedCosSim = network.MaskedCosSimLoss()
+            self.TVnorm = network.TV_norm(surf_normal=True)
             if opt.use_semantic:
 #                 weight_class = torch.tensor([3.0]).to(self.device)   #HYPERPARAM
                 self.criterionSemantic = nn.CrossEntropyLoss()
@@ -202,10 +206,12 @@ class SemiCycleGANModel(BaseModel, nn.Module):
                 inp_B_c = [self.fake_depth_B]
             else:
                 inp_B_c = [self.fake_depth_B, self.real_img_A]
-            if self.opt.use_semi_cycle and self.isTrain:
+            if self.opt.use_semi_cycle_first and self.isTrain:
                 self.set_requires_grad([self.netG_B], False)
                 self.rec_depth_A = self.netG_B(*inp_B_c)
                 self.set_requires_grad([self.netG_B], True)
+            elif self.opt.use_semi_cycle_second and self.isTrain:
+                self.rec_depth_A = self.netG_B(*[i.detach() for i in inp_B_c])
             else:
                 self.rec_depth_A = self.netG_B(*inp_B_c)
             if self.isTrain:
@@ -216,12 +222,13 @@ class SemiCycleGANModel(BaseModel, nn.Module):
                 inp_A_c = [self.fake_depth_A, self.img_feature_B]
             else:
                 inp_A_c = [self.fake_depth_A, self.real_img_B]
-            if self.opt.use_semi_cycle and self.isTrain:
+            if self.opt.use_semi_cycle_first and self.isTrain:
                 self.set_requires_grad([self.netG_A], False)
                 self.rec_depth_B = self.netG_A(*inp_A_c)
                 self.set_requires_grad([self.netG_A], True)
+            elif self.opt.use_semi_cycle_second and self.isTrain:
+                self.rec_depth_B = self.netG_A(*[i.detach() for i in inp_A_c])
             else:
-                
                 self.rec_depth_B = self.netG_A(*inp_A_c)
             if self.isTrain:
                 self.rec_norm_B = self.surf_normals(self.rec_depth_B)
@@ -305,7 +312,11 @@ class SemiCycleGANModel(BaseModel, nn.Module):
         if self.opt.l_mean_B > 0:
             self.loss_mean_dif_B = self.criterionMeanDif(self.fake_depth_A, self.real_depth_B, ~self.hole_mask_B) * self.opt.l_mean_B
             loss_B = loss_B + self.loss_mean_dif_B
-        
+            
+        if self.opt.l_tv_A > 0:
+            self.loss_tv_norm_A = self.TVnorm(self.fake_norm_B) * self.opt.l_tv_A
+            loss_A = loss_A + self.loss_tv_norm_A
+            
         if self.l_depth_A > 0:
             self.loss_depth_range_A = self.criterionMaskedL1(self.fake_depth_B, self.real_depth_A, ~self.hole_mask_A)* self.l_depth_A 
             loss_A = loss_A + self.loss_depth_range_A

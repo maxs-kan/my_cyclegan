@@ -297,6 +297,17 @@ class MaskedLoss(nn.Module):
         assert mask.dtype == torch.bool, 'mask shold be bool'
         return torch.sum(torch.mul(y-x, mask)) / (mask.sum() + 1e-6)
     
+class TV_norm(nn.Module):
+    def __init__(self, surf_normal=True):
+        super(TV_norm, self).__init__()
+        self.surf_normal = surf_normal
+    def forward(self, x):
+        if self.surf_normal:
+            x = x[:,:2,:,:]
+        tv_h = torch.pow(x[:,:,1:,:] - x[:,:,:-1,:], 2).sum()
+        tv_w = torch.pow(x[:,:,:,1:] - x[:,:,:,:-1], 2).sum()
+        return (tv_h + tv_w) / x.numel()
+    
 class CosSimLoss(nn.Module):
     def __init__(self):
         super(CosSimLoss, self).__init__()
