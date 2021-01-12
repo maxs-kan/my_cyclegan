@@ -47,7 +47,7 @@ if __name__ == '__main__':
     torch.cuda.set_device(opt.gpu_ids[0])
     torch.backends.cudnn.deterministic = opt.deterministic
     torch.backends.cudnn.benchmark = not opt.deterministic
-#     torch.autograd.set_detect_anomaly(True)
+    torch.autograd.set_detect_anomaly(True)
     
     vis = Visualizer(opt)
     plot = ploting_func(opt.model)
@@ -55,17 +55,16 @@ if __name__ == '__main__':
         wandb.init(project="depth_super_res", name=opt.name)
         wandb.config.update(opt)
     dataset = create_dataset(opt)  
-    dataset_size = len(dataset)    # get the number of images in the dataset.
+    dataset_size = len(dataset)    
     print('The number of training images = {}'.format(dataset_size))
     dataset_v = create_dataset(opt_v)  
-    dataset_size_v = len(dataset_v)    # get the number of images in the dataset.
+    dataset_size_v = len(dataset_v)    
     print('The number of test images = {}'.format(dataset_size_v))
-    model = create_model(opt)      # create a model given opt.model and other options
+    model = create_model(opt)     
     model.setup()
     if not opt.debug:
         wandb.watch(model)
     global_iter = 0
-    global_iter_v = 0
     for epoch in range(opt.epoch_count, opt.n_epochs + opt.n_epochs_decay + 1):
         model.train_mode()
         epoch_start_time = time.time()
@@ -87,8 +86,11 @@ if __name__ == '__main__':
                     wandb.log({"chart": fig}, step=global_iter)
                 plt.close(fig)
         print('Validation')
+        n_b = 0
         for i, data in enumerate(dataset_v):
-            global_iter_v += 1
+            if (i+1) % 200 == 0:
+                print('{} img procesed out of {}'.format((i+1)*opt.batch_size, dataset_size_v))
+            n_b += 1
             model.set_input(data)
             model.test()
             model.calc_test_loss()
@@ -96,12 +98,11 @@ if __name__ == '__main__':
                 mean_loss = model.get_current_losses_test()
             else:
                 mean_loss = acc_loss(mean_loss, model.get_current_losses_test())
-            if global_iter_v % (dataset_size_v // opt.batch_size) == 0:
-                fig = plot(model.get_current_vis())
-                if not opt.debug:
-                    wandb.log({"chart_val": fig}, step=global_iter)
-                plt.close(fig)
-        mean_loss = div_loss(mean_loss, dataset_size_v, epoch)
+        fig = plot(model.get_current_vis())
+        if not opt.debug:
+            wandb.log({"chart_val": fig, 'Epoch':epoch}, step=global_iter)
+        plt.close(fig)
+        mean_loss = div_loss(mean_loss, n_b, epoch)
         if not opt.debug:
             wandb.log(mean_loss, step = global_iter)
 

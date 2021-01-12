@@ -45,7 +45,8 @@ class SemiCycleDataset(BaseDataset):
         
         self.A_size = len(self.A_imgs)
         self.B_size = len(self.B_imgs)
-                              
+#         #for pretrain
+#         assert self.A_size == self.B_size, 'same pic for pretrain'
         
     def __getitem__(self, index):
         
@@ -86,18 +87,16 @@ class SemiCycleDataset(BaseDataset):
             
         A_img = self.read_data(A_img_path)
         B_img = self.read_data(B_img_path)
-#         A_img = Image.open(A_img_path).convert('RGB')
-#         B_img = Image.open(B_img_path).convert('RGB')
         
         A_depth, A_img, A_semantic = self.transform(A_depth, A_img, A_semantic)
         B_depth, B_img, _ = self.transform(B_depth, B_img)
-        
         if self.opt.isTrain:
             if self.bad_img(A_depth, A_img, B_depth, B_img):
                 print('Try new img')
                 A_depth, A_img, A_semantic, B_depth, B_img, A_img_n, B_img_n = self.load_data(torch.randint(low=0, high=self.A_size, size=(1,)).item())
         
         return A_depth, A_img, A_semantic, B_depth, B_img, A_img_n, B_img_n
+        
     
     def bad_img(self, *imgs):
         for i in imgs:
@@ -108,6 +107,28 @@ class SemiCycleDataset(BaseDataset):
                 print('All values are same')
                 return True
         return False
+    
+#     def transform(self, depth_a, depth_b, img):
+#         img = self.normalize_img(img)
+#         depth_a = self.normalize_depth(depth_a)
+#         depth_b = self.normalize_depth(depth_b)
+#         transformed = self.apply_transformer(self.transforms, img, depth_a, depth_b)
+#         img = np.clip(transformed['image'], -1, 1)
+#         depth_a = np.clip(transformed['depth_a'], -1, 1)
+#         depth_b = np.clip(transformed['depth_b'], -1, 1)
+#         img = torch.from_numpy(img).permute(2, 0, 1)
+#         depth_a = torch.from_numpy(depth_a).unsqueeze(0)
+#         depth_b = torch.from_numpy(depth_b).unsqueeze(0)
+#         return depth_a, depth_b, img
+#     def apply_transformer(self, transformations, img, depth_a, depth_b):
+#         target = {
+#             'image':'image',
+#             'depth_a':'image',
+#             'depth_b':'image',
+#         }
+#         res = A.Compose(transformations, p=1, additional_targets=target)(image=img, depth_a=depth_a, depth_b=depth_b)
+#         return res
+    
     
     def apply_transformer(self, transformations, img, depth, semantic=None):
         if semantic is not None:
@@ -124,22 +145,19 @@ class SemiCycleDataset(BaseDataset):
         return res
     
     def add_base_transform(self):
+        self.transforms.append(A.Resize(height=self.opt.load_size_h, width=self.opt.load_size_w, interpolation=4, p=1))
         if self.opt.isTrain:
-#             self.jitter = transforms_t.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1)
 #             self.transforms.append(A.Rotate(limit = [-30,30], p=0.8))
             self.transforms.append(A.RandomCrop(height=self.opt.crop_size_h, width=self.opt.crop_size_w, p=1))
             self.transforms.append(A.HorizontalFlip(p=0.5))
             self.transforms.append(A.VerticalFlip(p=0.5))
     
     def transform(self, depth, img, semantic=None):
-#         if self.opt.isTrain:
-#             img = self.jitter(img)
-#         img = np.array(img).astype(np.float32)
         img = self.normalize_img(img)
         depth = self.normalize_depth(depth)
         transformed = self.apply_transformer(self.transforms, img, depth, semantic)
-        img = np.clip(transformed['image'], -1, 1)
-        depth = np.clip(transformed['depth'], -1, 1)
+        img = transformed['image']
+        depth = transformed['depth']
         img = torch.from_numpy(img).permute(2, 0, 1)
         depth = torch.from_numpy(depth).unsqueeze(0)
         if semantic is not None:
@@ -148,4 +166,4 @@ class SemiCycleDataset(BaseDataset):
         return depth, img, semantic
     
     def __len__(self):
-        return max(self.A_size, self.B_size)
+        return self.A_size

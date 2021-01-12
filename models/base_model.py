@@ -57,9 +57,12 @@ class BaseModel(ABC, torch.nn.Module):
         if not self.isTrain or self.opt.continue_train:
             load_suffix = 'iter_%d' % self.opt.load_iter if self.opt.load_iter > 0 else self.opt.load_epoch
             self.load_networks(load_suffix)
-        elif self.opt.use_pretrain_weights:
+        elif self.opt.use_pretrain_weights_A:
             load_suffix = self.opt.load_epoch_weights
-            self.load_weights(load_suffix)
+            self.load_weights(load_suffix, 'netG_A')
+        elif self.opt.use_pretrain_weights_B:
+            load_suffix = self.opt.load_epoch_weights
+            self.load_weights(load_suffix, 'netG_B')
         if self.opt.use_pretrain_img2depth:
             self.load_img2depth()
         self.print_networks()
@@ -81,11 +84,11 @@ class BaseModel(ABC, torch.nn.Module):
             self.set_requires_grad([net], requires_grad=False)
             net.eval()
     
-    def load_weights(self, epoch):
+    def load_weights(self, epoch, net):
         load_filename = '%s.pt' % (epoch)
         load_path = os.path.join(self.opt.weights_dir, load_filename)
         checkpoint = torch.load(load_path, map_location=self.device)
-        for name in self.model_names:
+        for name in [net]:
             assert isinstance(name, str), 'model name must be str'
             net = getattr(self, name)
             if isinstance(net, torch.nn.DataParallel):
@@ -166,18 +169,6 @@ class BaseModel(ABC, torch.nn.Module):
             opt = getattr(self, name)
             state_dict[name] = opt.state_dict()
         torch.save(state_dict, save_path)
-                
-    def load_holes_pred(self):
-        load_filename = 'last_Unet.pth'
-        load_path = os.path.join(self.opt.checkpoints_dir, 'holes', load_filename)
-        net = getattr(self, 'holes_pred')
-        if isinstance(net, torch.nn.DataParallel):
-                net = net.module
-        print('loading the model from %s' % load_path)
-        state_dict = torch.load(load_path, map_location=self.device)
-        if hasattr(state_dict, '_metadata'):
-            del state_dict._metadata
-        net.load_state_dict(state_dict)
     
     def load_networks(self, epoch):
         load_filename = '%s.pt' % (epoch)

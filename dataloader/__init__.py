@@ -46,11 +46,17 @@ class Dataset_Dataloader():
         dataset_class = find_dataset_using_name(opt.dataset_mode)
         self.dataset = dataset_class(opt)
         print('Dataset {} was created'.format(type(self.dataset).__name__))
+        if (min(len(self.dataset), self.opt.max_dataset_size) % opt.batch_size != 0):
+            print('Warning, drop last batch')
+            drop_last = True
+        else:
+            drop_last = False
         self.dataloader = torch.utils.data.DataLoader(
             self.dataset,
             batch_size=opt.batch_size,
-            shuffle=opt.data_shuffle,
+            shuffle= not opt.no_data_shuffle,
             num_workers=int(opt.num_workers),
+            drop_last=drop_last,
             pin_memory=torch.cuda.is_available())
     def __len__(self):
         return min(len(self.dataset), self.opt.max_dataset_size)

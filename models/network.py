@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.nn import init
 from torch.nn.utils import spectral_norm
 import functools
@@ -110,24 +111,17 @@ def init_weights(net, init_type='normal', init_gain='relu', param=None):
             init.normal_(m.weight.data, mean=1.0, std=0.02)
             init.constant_(m.bias.data, 0.0)
 
-    print('initialize network with %s' % init_type)
+    print('initialize network with {}'.format(init_type))
     net.apply(init_func)  # apply the initialization function <init_func>
 
 
-def init_net(net, init_type='normal', init_gain='relu', gpu_ids=[], param=None,):
-    """Initialize a network: 1. register CPU/GPU device (with multi-GPU support); 2. initialize the network weights
-    Parameters:
-        net (network)      -- the network to be initialized
-        init_type (str)    -- the name of an initialization method: normal | xavier | kaiming | orthogonal
-        gain (float)       -- scaling factor for normal, xavier and orthogonal.
-        gpu_ids (int list) -- which GPUs the network runs on: e.g., 0,1,2
-
+def init_net(net, gpu_ids=[]):
+    """Initialize a network: 1. register CPU/GPU device (with multi-GPU support)
     Return an initialized network.
     """
     if len(gpu_ids) > 0:
         assert(torch.cuda.is_available())
         net = torch.nn.DataParallel(net, gpu_ids).cuda()
-    init_weights(net=net, init_type=init_type, init_gain=init_gain, param=param)
     return net
 
 
@@ -239,43 +233,6 @@ def cal_gradient_penalty(netD, real_data, fake_data, device, type='mixed', const
     else:
         return 0.0, None
 
-class MeanMatching(nn.Module):
-    def __init__(self, mu):
-        super(MeanMatching, self).__init__()
-        self.mu = mu
-    def forward(self, real, fake, direction):
-        if direction == 'A2B':
-#             mask_real = real > -1.0
-#             mask_fake = fake > -1.0
-#             mean_real = torch.sum(real, dim=(2,3), keepdim=True) / (torch.sum(mask_real, dim=(2,3), keepdim=True) + 1e-15)
-#             mean_fake = torch.sum(fake, dim=(2,3), keepdim=True) / (torch.sum(mask_fake, dim=(2,3), keepdim=True) + 1e-15)
-#             dif = (mean_real - mean_fake) * mask_fake
-#             fake = torch.clamp(fake + dif, -1.0, 1.0)
-            mask_fake = fake > -1.0
-            shift = np.random.uniform(low=0, high=self.mu) * mask_fake
-            fake = torch.clamp(fake + shift, -1.0, 1.0)
-        elif direction == 'B2A':
-#             mask_real = real > -1.0
-#             mask_fake = fake > -1.0
-#             mean_real = torch.sum(real, dim=(2,3), keepdim=True) / (torch.sum(mask_real, dim=(2,3), keepdim=True) + 1e-15)
-#             mean_fake = torch.sum(fake, dim=(2,3), keepdim=True) / (torch.sum(mask_fake, dim=(2,3), keepdim=True) + 1e-15)
-#             dif  = (mean_fake - mean_real) * mask_real
-#             real = torch.clamp(real + dif, -1.0, 1.0)
-            mask_real = real > -1.0
-            shift = np.random.uniform(low=0, high=self.mu) * mask_real
-            real = torch.clamp(real + shift, -1.0, 1.0)
-        else:
-            NotImplementedError('Specify direction')
-#         if torch.rand((1,)).item() > 0.5:
-#             mask_real = real > -1.0
-#             mask_fake = fake > -1.0
-#             mean_real = torch.sum(real, dim=(2,3), keepdim=True) / (torch.sum(mask_real, dim=(2,3), keepdim=True) + 1e-15)
-#             mean_fake = torch.sum(fake, dim=(2,3), keepdim=True) / (torch.sum(mask_fake, dim=(2,3), keepdim=True) + 1e-15)
-#             dif = (mean_real - mean_fake) * mask_fake
-#             fake = torch.clamp(fake + dif, -1.0, 1.0) #+ torch.normal(mean=0., std=0.001, size=real.shape, device=real.device) #torch.normal(mean=dif, std=0.001)
-            #fake = fake + torch.normal(mean=0., std=0.001, size=fake.shape, device=fake.device)
-        return real, fake
-
 class MaskedL1Loss(nn.Module):
     def __init__(self):
         super(MaskedL1Loss, self).__init__()
@@ -323,8 +280,7 @@ class MaskedCosSimLoss(nn.Module):
         assert mask.dtype == torch.bool, 'mask shold be bool'
         loss = 1 - self.cos_sim(x, y)
         return torch.div(torch.sum(torch.mul(loss.unsqueeze(1), mask)), torch.add(torch.sum(mask), 1e+6))
-        
-    
+         
 class SurfaceNormals(nn.Module):
     
     def __init__(self):
@@ -385,7 +341,8 @@ class SurfaceNormals(nn.Module):
 #######################################################################################
 def define_Unet(opt):
     net = UnetGenerator(opt)
-    return init_net(net=net, init_type=opt.init_type, init_gain='relu', gpu_ids=opt.gpu_ids)
+    init_weights(net=net, init_type=opt.init_type, init_gain='relu')
+    return init_net(net=net, gpu_ids=opt.gpu_ids)
 class UnetGenerator(nn.Module):
     """Create a Unet-based generator"""
 
@@ -405,7 +362,7 @@ class UnetGenerator(nn.Module):
         unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer, use_dropout=opt.dropout_unet)
         self.model = UnetSkipConnectionBlock(ngf, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer, use_dropout=opt.dropout_unet)  # add the outermost layer
         final_conv = [nn.LeakyReLU(True),
-                      nn.Conv2d(ngf, output_nc, kernel_size=3, stride=1, padding=1, dilation=1, padding_mode='replicate', bias=True)
+                      nn.Conv2d(ngf, output_nc, kernel_size=3, stride=1, padding=1, dilation=1, padding_mode='reflect', bias=True)
                      ]
         self.final_conv = nn.Sequential(*final_conv)
     def forward(self, x):
@@ -444,7 +401,7 @@ class UnetSkipConnectionBlock(nn.Module):
             input_nc = outer_nc
         
         downconv = nn.Conv2d(input_nc, inner_nc, kernel_size=4,
-                             stride=2, padding=1, dilation=1, padding_mode='replicate', bias=use_bias)
+                             stride=2, padding=1, dilation=1, padding_mode='reflect', bias=use_bias)
         downrelu = nn.LeakyReLU(0.2, True)
         downnorm = norm_layer(inner_nc)
         uprelu = nn.ReLU(True)
@@ -485,23 +442,20 @@ class UnetSkipConnectionBlock(nn.Module):
             return torch.cat([x, self.model(x)], 1)    
 ############################################################################################    
 
-
 class Encoder(nn.Module):
-    '''
-    reflection pad
-    '''
     def __init__(self, input_nc, base_nc, norm_layer, use_bias,  opt):
         super(Encoder, self).__init__()
-        model = [nn.Conv2d(input_nc, base_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='replicate', bias=use_bias),
+        model = [nn.Conv2d(input_nc, base_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='reflect', bias=use_bias),
                  norm_layer(base_nc),
                  nn.ReLU(True)
                 ]
         for i in range(opt.n_downsampling):
             mult = 2**i
-            model += [nn.Conv2d(base_nc * mult, base_nc * mult * 2, kernel_size=4, stride=2, padding=1, dilation=1, padding_mode='replicate', bias=use_bias),
+            model += [nn.Conv2d(base_nc * mult, base_nc * mult * 2, kernel_size=4, stride=2, padding=1, dilation=1, padding_mode='reflect', bias=use_bias),
                       norm_layer(base_nc * mult * 2),
                       nn.ReLU(True)]
-            self.model = nn.Sequential(*model)
+        self.model = nn.Sequential(*model)
+    
     def forward(self, x):
         return self.model(x)
     
@@ -515,13 +469,14 @@ class Decoder(nn.Module):
                 up_layer(mult * base_nc, int(base_nc * mult / 2), use_bias=use_bias, opt=opt),
                 norm_layer(int(base_nc * mult / 2)),
                 nn.ReLU(True)]
-        model += [nn.Conv2d(base_nc, output_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='replicate', bias=True)]
+        model += [nn.Conv2d(base_nc, output_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='reflect', bias=True)]
         if output == 'depth':
             assert output_nc == 1, 'only 1 chanels for depth'
             model += [nn.Tanh()]
         else:
             assert output == 'semantic'
         self.model = nn.Sequential(*model)
+    
     def forward(self, x):
         return self.model(x)
 
@@ -537,21 +492,10 @@ class UpConv(nn.Module):
         super(UpConv, self).__init__()
         self.resizeconv = nn.Sequential(
             nn.Upsample(scale_factor=2, mode='nearest'),
-            nn.Conv2d(in_chanels, out_chanels, kernel_size=3, stride=1, padding=1, dilation=1, padding_mode='replicate', bias=use_bias)
+            nn.Conv2d(in_chanels, out_chanels, kernel_size=3, stride=1, padding=1, dilation=1, padding_mode='reflect', bias=use_bias)
         )
     def forward(self, x):
         return self.resizeconv(x)
-    
-class UpTranspose(nn.Module):
-    def __init__(self,in_chanels, out_chanels, use_bias, opt):
-        super(UpTranspose, self).__init__()
-        self.resizeconv = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
-            nn.Conv2d(in_chanels, out_chanels, kernel_size=3, stride=1, padding=1, dilation=1, padding_mode='replicate', bias=use_bias)
-        )
-        self.transposeconv = nn.ConvTranspose2d(in_chanels, out_chanels, kernel_size=4, stride=2, padding=1, output_padding=0, dilation=1, padding_mode='zeros', bias=False)
-    def forward(self, x):
-        return self.resizeconv(x) + self.transposeconv(x)
     
 class ResnetBottlenec(nn.Module):
     def __init__(self, base_nc, n_blocks, norm_layer, use_bias, opt, use_dilation=False):
@@ -565,8 +509,9 @@ class ResnetBottlenec(nn.Module):
                 dilation = 1
             model += [ResnetBlock(dim=base_nc * mult, dilation=dilation, norm_layer=norm_layer, use_bias=use_bias, opt=opt),
 #                      nn.ReLU(True)
-                     ]#min(2**i, 16)
+                     ]
         self.model = nn.Sequential(*model)
+    
     def forward(self, depth, img=None):
         if img is not None:
             input = torch.cat((depth, img), dim=1)
@@ -575,7 +520,6 @@ class ResnetBottlenec(nn.Module):
         return self.model(input)
 
 class ResnetBlock(nn.Module):
-
     def __init__(self, dim, dilation, norm_layer, use_bias, opt):
         super(ResnetBlock, self).__init__()
         self.conv_block = self.build_conv_block(dim, dilation, norm_layer, use_bias, opt)
@@ -583,18 +527,18 @@ class ResnetBlock(nn.Module):
     def build_conv_block(self, dim, dilation, norm_layer, use_bias, opt):
         conv_block = []
         pad = int(dilation * ( 3 - 1) / 2) ###kernel_size=3
-        conv_block += [nn.Conv2d(dim, dim, kernel_size=3, stride=1, padding=pad, dilation=dilation, padding_mode='replicate', bias=use_bias),
+        conv_block += [nn.Conv2d(dim, dim, kernel_size=3, stride=1, padding=pad, dilation=dilation, padding_mode='reflect', bias=use_bias),
                        norm_layer(dim), 
                        nn.ReLU(True)]
         if opt.dropout:
             conv_block += [nn.Dropout(0.5)]
-        conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=pad, dilation=dilation, padding_mode='replicate', bias=use_bias), 
+        conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=pad, dilation=dilation, padding_mode='reflect', bias=use_bias), 
                        norm_layer(dim)]
         return nn.Sequential(*conv_block)
 
     def forward(self, x):
         """Forward function (with skip connections)"""
-        out = x + self.conv_block(x)  # add skip connections
+        out = x + self.conv_block(x)
         return out
 
 def define_Gen(opt, input_type, out_type='depth'):
@@ -605,7 +549,7 @@ def define_Gen(opt, input_type, out_type='depth'):
         net = GeneratorF_D(opt, use_bias)
     else:
         net = Generator(opt, input_type, use_bias)
-    return init_net(net=net, init_type=opt.init_type, init_gain='relu', gpu_ids=opt.gpu_ids)
+    return init_net(net=net, gpu_ids=opt.gpu_ids)
 
 class GeneratorI_F(nn.Module):
     def __init__(self, opt, use_bias):
@@ -615,6 +559,8 @@ class GeneratorI_F(nn.Module):
         base_nc = opt.ngf_img_feature
         self.enc = Encoder(input_nc=opt.input_nc_img, base_nc=base_nc, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
         self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks = 6, norm_layer=norm_layer, use_bias=use_bias, opt=opt, use_dilation=True)
+        init_weights(net=self.enc, init_type=opt.init_type, init_gain='relu')
+        init_weights(net=self.bottlenec, init_type=opt.init_type, init_gain='relu')
     def forward(self, x):
         x = self.enc(x)
         return self.bottlenec(x)
@@ -628,9 +574,70 @@ class GeneratorF_D(nn.Module):
         base_nc = opt.ngf_img_feature
         self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks = 9, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
         self.dec = Decoder(base_nc=base_nc, output_nc=opt.output_nc_depth, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='depth')
+        init_weights(net=self.bottlenec, init_type=opt.init_type, init_gain='relu')
+        init_weights(net=self.dec, init_type=opt.init_type, init_gain='relu')
     def forward(self, x):
         x = self.bottlenec(x)
         return self.dec(x)
+    
+class EncoderImg(nn.Module):
+    def __init__(self, input_nc, base_nc, norm_layer, use_bias,  opt):
+        super(EncoderImg, self).__init__()
+        vgg = torch.hub.load('pytorch/vision:v0.6.0', 'vgg19', pretrained=True).features[:8]
+        self.adain = AdaIN()
+        self.conv1_0 = vgg[0]
+        self.conv1_1 = vgg[2]
+        self.conv2_0 = vgg[5]
+        self.conv2_1 = vgg[7]
+#         model = [nn.Conv2d(input_nc, base_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='reflect', bias=use_bias),
+#                  norm_layer(base_nc),
+#                  nn.ReLU(True)
+#                 ]
+#         for i in range(opt.n_downsampling):
+#             mult = 2**i
+#             model += [nn.Conv2d(base_nc * mult, base_nc * mult * 2, kernel_size=4, stride=2, padding=1, dilation=1, padding_mode='reflect', bias=use_bias),
+#                       norm_layer(base_nc * mult * 2),
+#                       nn.ReLU(True)]
+#         model += [nn.Conv2d(base_nc * mult * 2, base_nc * mult * 2, kernel_size=3, stride=1, padding=1, dilation=1, padding_mode='reflect', bias=True)]    
+#         self.model = nn.Sequential(*model)
+    
+    def forward(self, x, mu1_0=None, mu1_1=None, mu2_0=None, mu2_1=None, std1_0=None, std1_1=None, std2_0=None, std2_1=None, self_domain=True):
+        with torch.no_grad():
+            x = self.conv1_0(x)
+            x = F.relu(x, True)
+            x, mu1_0, std1_0 = self.adain(x, self_domain, mu1_0, std1_0) 
+            
+            x = self.conv1_1(x)
+            x = F.relu(x, True)
+            x, mu1_1, std1_1 = self.adain(x, self_domain, mu1_1, std1_1)
+            x = F.max_pool2d(x, kernel_size=2, stride=2, padding=0, dilation=1)
+            
+            x = self.conv2_0(x)
+            x = F.relu(x, True)
+            x, mu2_0, std2_0 = self.adain(x, self_domain, mu2_0, std2_0)
+            
+            x = self.conv2_1(x)
+            x = F.relu(x, True)
+            x, mu2_1, std2_1 = self.adain(x, self_domain, mu2_1, std2_1)
+            x = F.max_pool2d(x, kernel_size=2, stride=2, padding=0, dilation=1)
+            if self_domain:
+                return x, [mu1_0, mu1_1, mu2_0, mu2_1], [std1_0, std1_1, std2_0, std2_1]
+            else: 
+                return x
+    
+class AdaIN(nn.Module):
+    def __init__(self):
+        super(AdaIN, self).__init__()
+    
+    def forward(self, x, self_domain, mu=None, std=None):
+        if self_domain:
+            mu = torch.mean(x.detach(), dim=(2,3), keepdim=True)
+            std = torch.std(x.detach(), dim=(2,3), keepdim=True)
+        else:
+            assert mu is not None and std is not None, 'calc affine param first'
+            x = F.instance_norm(x)
+            x = x * std + mu
+        return x, mu, std
 
 class Generator(nn.Module):
     def __init__(self, opt, input_type, use_bias):
@@ -641,11 +648,11 @@ class Generator(nn.Module):
         up_layer = get_upsampling(upsampling_type=opt.upsampling_type)
         if self.input_type == 'img_depth':
             base_nc = opt.ngf_img + opt.ngf_depth
-            self.enc_img = Encoder(input_nc=opt.input_nc_img, base_nc=opt.ngf_img, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
+            self.enc_img = EncoderImg(input_nc=opt.input_nc_img, base_nc=opt.ngf_img, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
             self.enc_depth = Encoder(input_nc=opt.input_nc_depth, base_nc=opt.ngf_depth, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
             self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks = opt.n_blocks, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
-            if opt.use_semantic:
-                self.dec_img = Decoder(base_nc=base_nc, output_nc=opt.output_nc_img, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='semantic')
+#             if opt.use_semantic:
+#                 self.dec_img = Decoder(base_nc=base_nc, output_nc=opt.output_nc_img, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='semantic')
             self.dec_depth = Decoder(base_nc=base_nc, output_nc=opt.output_nc_depth, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='depth')
         elif self.input_type == 'depth':
             base_nc = opt.ngf_depth * 2
@@ -661,17 +668,29 @@ class Generator(nn.Module):
             self.dec_depth = Decoder(base_nc=base_nc, output_nc=opt.output_nc_depth, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='depth')
         else:
             raise NotImplementedError('Specify input type')
-    def forward(self, depth, img=None, return_logits=False):
+            
+        init_weights(net=self.enc_depth, init_type=opt.init_type, init_gain='relu')
+        init_weights(net=self.bottlenec, init_type=opt.init_type, init_gain='relu')
+        init_weights(net=self.dec_depth, init_type=opt.init_type, init_gain='relu')
+    
+    def forward(self, depth, img=None, self_domain=True, mu=None, std=None):
         if self.input_type == 'img_depth':
-            img = self.enc_img(img)
+            if self_domain:
+                img, mu, std = self.enc_img(img, self_domain=self_domain)
+            else:
+                img = self.enc_img(img, *mu, *std, self_domain)
             depth = self.enc_depth(depth)
             x = self.bottlenec(depth, img)
             depth = self.dec_depth(x)
-            if self.opt.use_semantic and return_logits:
-                logits = self.dec_img(x)
-                return depth, logits
+            if self_domain:
+                return depth, mu, std
             else:
                 return depth
+#             if self.opt.use_semantic and return_logits:
+#                 logits = self.dec_img(x)
+#                 return depth, logits
+#             else:
+#                 return depth
         elif self.input_type == 'depth':
             depth = self.enc_depth(depth)
             depth = self.bottlenec(depth)
@@ -737,8 +756,8 @@ def define_D(opt, input_type='depth'):
         net = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer)
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % opt.netD)
-    net = init_net(net=net, init_type=opt.init_type, init_gain='leaky_relu', gpu_ids=opt.gpu_ids, param=0.2)
-    
+    net = init_net(net=net, gpu_ids=opt.gpu_ids)
+    init_weights(net=net, init_type=opt.init_type, init_gain='leaky_relu', param=0.2)
     if opt.use_spnorm:
         if opt.norm_d != 'none':
             print('Warning use spectral normalization with some network normalization')
@@ -795,6 +814,54 @@ class NLayerDiscriminator(nn.Module):
     def forward(self, input):
         """Standard forward."""
         return self.model(input)
+    
+# class UpTranspose(nn.Module):
+#     def __init__(self,in_chanels, out_chanels, use_bias, opt):
+#         super(UpTranspose, self).__init__()
+#         self.resizeconv = nn.Sequential(
+#             nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
+#             nn.Conv2d(in_chanels, out_chanels, kernel_size=3, stride=1, padding=1, dilation=1, padding_mode='reflect', bias=use_bias)
+#         )
+#         self.transposeconv = nn.ConvTranspose2d(in_chanels, out_chanels, kernel_size=4, stride=2, padding=1, output_padding=0, dilation=1, padding_mode='zeros', bias=False)
+#     def forward(self, x):
+#         return self.resizeconv(x) + self.transposeconv(x)
+    
+# class MeanMatching(nn.Module):
+#     def __init__(self, mu):
+#         super(MeanMatching, self).__init__()
+#         self.mu = mu
+#     def forward(self, real, fake, direction):
+#         if direction == 'A2B':
+# #             mask_real = real > -1.0
+# #             mask_fake = fake > -1.0
+# #             mean_real = torch.sum(real, dim=(2,3), keepdim=True) / (torch.sum(mask_real, dim=(2,3), keepdim=True) + 1e-15)
+# #             mean_fake = torch.sum(fake, dim=(2,3), keepdim=True) / (torch.sum(mask_fake, dim=(2,3), keepdim=True) + 1e-15)
+# #             dif = (mean_real - mean_fake) * mask_fake
+# #             fake = torch.clamp(fake + dif, -1.0, 1.0)
+#             mask_fake = fake > -1.0
+#             shift = np.random.uniform(low=0, high=self.mu) * mask_fake
+#             fake = torch.clamp(fake + shift, -1.0, 1.0)
+#         elif direction == 'B2A':
+# #             mask_real = real > -1.0
+# #             mask_fake = fake > -1.0
+# #             mean_real = torch.sum(real, dim=(2,3), keepdim=True) / (torch.sum(mask_real, dim=(2,3), keepdim=True) + 1e-15)
+# #             mean_fake = torch.sum(fake, dim=(2,3), keepdim=True) / (torch.sum(mask_fake, dim=(2,3), keepdim=True) + 1e-15)
+# #             dif  = (mean_fake - mean_real) * mask_real
+# #             real = torch.clamp(real + dif, -1.0, 1.0)
+#             mask_real = real > -1.0
+#             shift = np.random.uniform(low=0, high=self.mu) * mask_real
+#             real = torch.clamp(real + shift, -1.0, 1.0)
+#         else:
+#             NotImplementedError('Specify direction')
+# #         if torch.rand((1,)).item() > 0.5:
+# #             mask_real = real > -1.0
+# #             mask_fake = fake > -1.0
+# #             mean_real = torch.sum(real, dim=(2,3), keepdim=True) / (torch.sum(mask_real, dim=(2,3), keepdim=True) + 1e-15)
+# #             mean_fake = torch.sum(fake, dim=(2,3), keepdim=True) / (torch.sum(mask_fake, dim=(2,3), keepdim=True) + 1e-15)
+# #             dif = (mean_real - mean_fake) * mask_fake
+# #             fake = torch.clamp(fake + dif, -1.0, 1.0) #+ torch.normal(mean=0., std=0.001, size=real.shape, device=real.device) #torch.normal(mean=dif, std=0.001)
+#             #fake = fake + torch.normal(mean=0., std=0.001, size=fake.shape, device=fake.device)
+#         return real, fake
     
 
 # def define_G(opt, direction = None):

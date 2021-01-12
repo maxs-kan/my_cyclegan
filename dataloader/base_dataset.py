@@ -13,9 +13,11 @@ class BaseDataset(data.Dataset, ABC):
         self.root = opt.dataroot
         self.scale = self.opt.max_distance / 2
         self.IMG_EXTENSIONS = []
-        self.transforms = [A.Resize(height=self.opt.load_size_h, width=self.opt.load_size_w, interpolation=4, p=4)]
+        self.transforms = []
         self.dir_A = os.path.join(self.root, self.opt.phase + 'A')
         self.dir_B = os.path.join(self.root, self.opt.phase + 'B')
+        self.img_mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+        self.img_std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
     
     def add_extensions(self, ext_list):
         self.IMG_EXTENSIONS.extend(ext_list)    
@@ -40,14 +42,10 @@ class BaseDataset(data.Dataset, ABC):
                 if img.shape[2] > 3:
                     img = img[:,:,:3]
                 img = img.astype(np.float32)
-#                 img = (img-mean_i)/std_i
-                img = img / 127.5 - 1.0
+#                 img = img / 127.5 - 1.
+                img = img / 255.
+                img = (img - self.img_mean) / self.img_std
                 return img
-#             elif img.dtype == np.float32:
-#                 if img.shape[2] > 3:
-#                     img = img[:,:,:3]
-#                 img = img / 127.5 - 1.0
-#                 return img
             else:
                 print(img.dtype)
                 raise AssertionError('Img datatype')
@@ -59,7 +57,7 @@ class BaseDataset(data.Dataset, ABC):
             if depth.dtype == np.uint16:
                 depth = depth.astype(np.float32)
                 depth = np.where(depth>self.opt.max_distance, self.opt.max_distance, depth)
-                depth = depth / self.scale - 1
+                depth = depth / self.scale - 1.
                 return depth
             else:
                 print(depth.dtype)

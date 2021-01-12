@@ -169,7 +169,7 @@ class Visualizer():
         
         real_img_A = util.tensor2im(img_dict['real_img_A'], self.opt, isDepth=False)
         real_depth_A = util.tensor2im(img_dict['real_depth_A'], self.opt, isDepth=True)
-        img2depth_A = util.tensor2im(img_dict['img_depth_A'], self.opt, isDepth=True)
+#         img2depth_A = util.tensor2im(img_dict['img_depth_A'], self.opt, isDepth=True)
         real_norm_A = util.get_normals(real_depth_A * 1000)
         fake_depth_A = util.tensor2im(img_dict['fake_depth_A'], self.opt, isDepth=True)
         fake_norm_A = util.get_normals(fake_depth_A * 1000)
@@ -197,7 +197,7 @@ class Visualizer():
             axes[2*i,1].set_title('A_depth')
             axes[2*i,2].set_title('A_norm')
             axes[2*i,3].set_title('fakeA_depth')
-            axes[2*i,4].set_title('img2depth')
+            axes[2*i,4].set_title('fakeA_depth')
             axes[2*i,5].set_title('fakeA_norm')
 
             axes[2*i+1,0].set_title('B_rgb')
@@ -211,7 +211,7 @@ class Visualizer():
             axes[2*i,1].imshow(real_depth_A[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
             axes[2*i,2].imshow(real_norm_A[i])
             axes[2*i,3].imshow(fake_depth_A[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-            axes[2*i,4].imshow(img2depth_A[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+            axes[2*i,4].imshow(fake_depth_A[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
             axes[2*i,5].imshow(fake_norm_A[i])
             
             axes[2*i+1,0].imshow(real_img_B[i])

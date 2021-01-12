@@ -59,8 +59,13 @@ def tensor2im(input, opt, isDepth = True):
             tensor = data_to_meters(tensor, opt)
             numpy = tensor.cpu().permute(0,2,3,1).numpy()[:,:,:,0]
         else:
-            tensor = tensor * 127.5 + 127.5
-            numpy = tensor.cpu().permute(0,2,3,1).numpy().astype(np.uint8)
+#             tensor = tensor * 127.5 + 127.5
+            tensor = tensor.cpu()
+            std = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float32)[None, :, None, None]
+            mean = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float32)[None, :, None, None]
+            tensor = tensor * std + mean
+            tensor = tensor * 255.
+            numpy = tensor.permute(0,2,3,1).numpy().astype(np.uint8)
     else:  # if it is a numpy array, do nothing
         numpy = input
     return numpy
