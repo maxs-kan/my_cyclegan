@@ -74,7 +74,7 @@ if __name__ == '__main__':
             model.set_input(data)
             model.optimize_param()
 #             torch.cuda.empty_cache()
-            model.update_loss_weight(global_iter)
+#             model.update_loss_weight(global_iter)
             iter_finish_time = time.time()
             if global_iter % opt.loss_freq == 0:
                 if not opt.debug:

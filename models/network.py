@@ -541,14 +541,14 @@ class ResnetBlock(nn.Module):
         out = x + self.conv_block(x)
         return out
 
-def define_Gen(opt, input_type, out_type='depth'):
+def define_Gen(opt, input_type, out_type='depth', use_noise=False):
     use_bias = opt.norm == 'instance'
     if input_type == 'img' and out_type == 'feature':
         net = GeneratorI_F(opt, use_bias)
     elif input_type == 'feature' and out_type == 'depth':
         net = GeneratorF_D(opt, use_bias)
     else:
-        net = Generator(opt, input_type, use_bias)
+        net = Generator(opt, input_type, use_bias, use_noise)
     return init_net(net=net, gpu_ids=opt.gpu_ids)
 
 class GeneratorI_F(nn.Module):
@@ -640,7 +640,7 @@ class AdaIN(nn.Module):
         return x, mu, std
 
 class Generator(nn.Module):
-    def __init__(self, opt, input_type, use_bias):
+    def __init__(self, opt, input_type, use_bias, use_noise=False):
         super(Generator, self).__init__()
         self.input_type = input_type
         self.opt = opt
@@ -648,8 +648,12 @@ class Generator(nn.Module):
         up_layer = get_upsampling(upsampling_type=opt.upsampling_type)
         if self.input_type == 'img_depth':
             base_nc = opt.ngf_img + opt.ngf_depth
+            if use_noise:
+                input_nc_depth = opt.input_nc_depth + 1
+            else:
+                input_nc_depth = opt.input_nc_depth
             self.enc_img = EncoderImg(input_nc=opt.input_nc_img, base_nc=opt.ngf_img, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
-            self.enc_depth = Encoder(input_nc=opt.input_nc_depth, base_nc=opt.ngf_depth, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
+            self.enc_depth = Encoder(input_nc=input_nc_depth, base_nc=opt.ngf_depth, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
             self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks = opt.n_blocks, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
 #             if opt.use_semantic:
 #                 self.dec_img = Decoder(base_nc=base_nc, output_nc=opt.output_nc_img, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='semantic')
@@ -673,12 +677,14 @@ class Generator(nn.Module):
         init_weights(net=self.bottlenec, init_type=opt.init_type, init_gain='relu')
         init_weights(net=self.dec_depth, init_type=opt.init_type, init_gain='relu')
     
-    def forward(self, depth, img=None, self_domain=True, mu=None, std=None):
+    def forward(self, depth, img=None, self_domain=True, mu=None, std=None, noise=None):
         if self.input_type == 'img_depth':
             if self_domain:
                 img, mu, std = self.enc_img(img, self_domain=self_domain)
             else:
                 img = self.enc_img(img, *mu, *std, self_domain)
+            if noise is not None:
+                depth = torch.cat((depth, noise), dim=1)
             depth = self.enc_depth(depth)
             x = self.bottlenec(depth, img)
             depth = self.dec_depth(x)

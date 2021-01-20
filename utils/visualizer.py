@@ -308,6 +308,8 @@ class Visualizer():
         B_norm_fake = util.get_normals(B_depth_fake * 1000)
         A_depth_rec = util.tensor2im(img_dict['rec_depth_A'], self.opt, isDepth=True)
         A_norm_rec = util.get_normals(A_depth_rec * 1000)
+#         A_cycle_cycle = util.tensor2im(img_dict['cycle_fake_B'], self.opt, isDepth=True)
+#         A_cycle_cycle_n = util.get_normals(A_cycle_cycle * 1000)
 #         A_idt = util.tensor2im(img_dict['idt_A'], self.opt, isDepth=True)
         
         B_imgs = util.tensor2im(img_dict['real_img_B'], self.opt, isDepth=False)
@@ -323,7 +325,7 @@ class Visualizer():
         batch_size = A_imgs.shape[0]
         n_pic = min(batch_size, self.opt.n_pic)
         n_col = 8
-        fig_size = (40,30)
+        fig_size = (50,40)
         n_row = 2 * n_pic
         fig, axes = plt.subplots(nrows=n_row, ncols=n_col, figsize=fig_size)
         fig.subplots_adjust(hspace=0.0, wspace=0.1)
@@ -338,9 +340,11 @@ class Visualizer():
             axes[2*i,1].set_title('Real Depth')
             axes[2*i,2].set_title('R-S Depth')
             axes[2*i,3].set_title('Cycle Depth A')
+#             axes[2*i,4].set_title('Cycle Cycle Depth A')
             axes[2*i,4].set_title('Real Norm')
             axes[2*i,5].set_title('R-S Norm')
             axes[2*i,6].set_title('Cycle Norm A')
+#             axes[2*i,8].set_title('Cycle Cycle Norm A')
             axes[2*i,7].set_title('Graph')
             
             axes[2*i+1,0].set_title('Syn RGB')
@@ -356,9 +360,11 @@ class Visualizer():
             axes[2*i,1].imshow(A_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
             axes[2*i,2].imshow(B_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
             axes[2*i,3].imshow(A_depth_rec[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+#             axes[2*i,4].imshow(A_cycle_cycle[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
             axes[2*i,4].imshow(A_norm[i])
             axes[2*i,5].imshow(B_norm_fake[i])
             axes[2*i,6].imshow(A_norm_rec[i])
+#             axes[2*i,8].imshow(A_cycle_cycle_n[i])
             axes[2*i,7].plot(A_depth[i][100], label = 'Real Depth')
             axes[2*i,7].plot(B_depth_fake[i][100], label = 'R-S Depth')
             axes[2*i,7].legend()
@@ -373,6 +379,8 @@ class Visualizer():
             axes[2*i+1,7].plot(B_depth[i][100], label = 'Syn Depth')
             axes[2*i+1,7].plot(A_depth_fake[i][100], label = 'S-R Depth')
             axes[2*i+1,7].legend()
+#             axes[2*i+1,8].imshow(A_norm_rec[i])
+#             axes[2*i+1,9].imshow(A_cycle_cycle_n[i])
         self.logger.setLevel(old_level)                        
 #             fig.colorbar(r_d, ax=axes[2*i,1],fraction=0.046, pad=0.03)
         return fig
