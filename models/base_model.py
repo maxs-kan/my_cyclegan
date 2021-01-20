@@ -14,7 +14,6 @@ class BaseModel(ABC, torch.nn.Module):
         self.model_names = []
         self.visuals_names = []
         self.optimizers = []
-#         self.image_paths = []
         self.metric = 0    # validation loss plateau sheduler
     
     @abstractmethod
