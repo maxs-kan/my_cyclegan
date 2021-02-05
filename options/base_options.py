@@ -21,10 +21,12 @@ class BaseOptions():
         """Define the common options that are used in both training and test."""
         
         # basic parameters
-        parser.add_argument('--dataroot', type=str, default='/all_data/hdd/un_depth/semi/sample', help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
+        parser.add_argument('--dataroot', type=str, default='/all_data/Scannet_ssim', help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
+        parser.add_argument('--int_mtrx_scan', type=str, default='/all_data/Scannet/', help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
         parser.add_argument('--name', type=str, default='test', help='name of the experiment. It decides where to store samples and models')
         parser.add_argument('--gpu_ids', type=str, default='1,2', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
         parser.add_argument('--debug', action='store_true', default=False, help='debug mode, no wandb')
+        parser.add_argument('--max_distance', type=float, default=5100.0, help='all depth bigger will seted to this value')
         
         parser.add_argument('--checkpoints_dir', type=str, default='./checkpoints', help='models are saved here')
         parser.add_argument('--weights_dir', type=str, default='./checkpoints/pretrain_weights_imgdepht/', help='pretrain weights')
@@ -77,10 +79,12 @@ class BaseOptions():
         parser.add_argument('--num_workers', default=4, type=int, help='# threads for loading data')
         parser.add_argument('--batch_size', type=int, default=8, help='input batch size')
 #         parser.add_argument('--pool_size', type=int, default=50, help='the size of image buffer that stores previously generated images')
-        parser.add_argument('--load_size_h', type=int, default=480, help='scale images to this size')
-        parser.add_argument('--load_size_w', type=int, default=640, help='scale images to this size')
-        parser.add_argument('--crop_size_h', type=int, default=240, help='then crop to this size')
-        parser.add_argument('--crop_size_w', type=int, default=320, help='then crop to this size')
+        parser.add_argument('--load_size_h_A', type=int, default=480, help='scale images to this size')
+        parser.add_argument('--load_size_w_A', type=int, default=640, help='scale images to this size')
+        parser.add_argument('--load_size_h_B', type=int, default=320, help='scale images to this size')#480
+        parser.add_argument('--load_size_w_B', type=int, default=320, help='scale images to this size')#640
+        parser.add_argument('--crop_size_h', type=int, default=256, help='then crop to this size')
+        parser.add_argument('--crop_size_w', type=int, default=256, help='then crop to this size')
         parser.add_argument('--hole_border', type=float, default=-0.97, help='value of holes')
         parser.add_argument('--l_normal', type=float, default=40., help='weight for normals cycle loss')
         parser.add_argument('--l_hole_A', type=float, default=0.0, help='weight for mean_dif for B')

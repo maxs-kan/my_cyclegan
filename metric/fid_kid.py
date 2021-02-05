@@ -56,8 +56,8 @@ parser.add_argument('--mmd-subset-size', type=int, default=1000)
 parser.add_argument('--mmd-var', action='store_true', default=False)
 
 
-def get_activations(depths_list, normals_list, model, batch_size=50, dims=2048,
-                    cuda=False, verbose=False):
+def get_activations(depths_list, model, batch_size=50, dims=2048,
+                    cuda=False, verbose=False): #, normals_list
     """Calculates the activations of the pool_3 layer for all images.
     Params:
     -- files       : List of image files paths
@@ -99,17 +99,17 @@ def get_activations(depths_list, normals_list, model, batch_size=50, dims=2048,
         #     ii = imread(str(f)).astype(np.float32)
         #     print(ii.shape)
 
-        if args.use_normals:
-            depths = np.array([imageio.imread(str(f)).astype(np.float32)[np.newaxis, :, :,] for f in depths_list[start:end]])
-            depths = np.where(depths>8000.0, 8000.0, depths)
-            depths /= 8000.0
-            normals = np.array([np.load(str(f)).astype(np.float32) for f in normals_list[start:end]])
-            input = np.concatenate((depths, normals), axis = 1)
-        else:
-            depths = np.array([np.repeat(imageio.imread(str(f)).astype(np.float32)[np.newaxis, :, :,], 3, axis=0) for f in depths_list[start:end]])
-            depths = np.where(depths>8000.0, 8000.0, depths)
-            depths /= 8000.0
-            input = depths
+#         if args.use_normals:
+#             depths = np.array([imageio.imread(str(f)).astype(np.float32)[np.newaxis, :, :,] for f in depths_list[start:end]])
+#             depths = np.where(depths>8000.0, 8000.0, depths)
+#             depths /= 8000.0
+#             normals = np.array([np.load(str(f)).astype(np.float32) for f in normals_list[start:end]])
+#             input = np.concatenate((depths, normals), axis = 1)
+#         else:
+        depths = np.array([np.repeat(imageio.imread(str(f)).astype(np.float32)[np.newaxis, :, :,], 3, axis=0) for f in depths_list[start:end]])
+        depths = np.where(depths>8000.0, 8000.0, depths)
+        depths /= 8000.0
+        input = depths
         batch = torch.from_numpy(input).type(torch.FloatTensor)
         if cuda:
             batch = batch.cuda()
@@ -184,7 +184,7 @@ def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
             np.trace(sigma2) - 2 * tr_covmean)
 
 
-def calculate_activation_statistics(depths, normals, model, batch_size=50,
+def calculate_activation_statistics(depths, model, batch_size=50,
                                     dims=2048, cuda=False, verbose=False):
     """Calculation of the statistics used by the FID.
     Params:
@@ -203,7 +203,7 @@ def calculate_activation_statistics(depths, normals, model, batch_size=50,
     -- sigma : The covariance matrix of the activations of the pool_3 layer of
                the inception model.
     """
-    act = get_activations(depths, normals, model, batch_size, dims, cuda, verbose)
+    act = get_activations(depths, model, batch_size, dims, cuda, verbose)
     mu = np.mean(act, axis=0)
     sigma = np.cov(act, rowvar=False)
     return act, mu, sigma
@@ -218,8 +218,8 @@ def _compute_statistics_of_path(path, model, batch_size, dims, cuda):
 #     else:
 #     path = pathlib.Path(path)
     depths = sorted(glob(os.path.join(path, 'depth/*.png')))
-    normals = sorted(glob(os.path.join(path, 'normal/*.npy')))
-    act, m, s = calculate_activation_statistics(depths, normals, model, batch_size,
+#     normals = sorted(glob(os.path.join(path, 'normal/*.npy')))
+    act, m, s = calculate_activation_statistics(depths, model, batch_size,
                                                dims, cuda)
 
     return act,m, s
@@ -428,12 +428,12 @@ def calculate_given_paths(paths, batch_size, cuda, dims):
         mmd2s = ret
     print("mean MMD^2 estimate:", mmd2s.mean()*100)
     print("std MMD^2 estimate:", mmd2s.std())
-    # print("MMD^2 estimates:", mmd2s, sep='\n')
+    print("MMD^2 estimates:", mmd2s, sep='\n')
     print()
     if args.mmd_var:
         print("mean Var[MMD^2] estimate:", vars.mean()*100)
         print("std Var[MMD^2] estimate:", vars.std())
-        # print("Var[MMD^2] estimates:", vars, sep='\n')
+        print("Var[MMD^2] estimates:", vars, sep='\n')
         print()
 
 

@@ -46,7 +46,7 @@ class Dataset_Dataloader():
         dataset_class = find_dataset_using_name(opt.dataset_mode)
         self.dataset = dataset_class(opt)
         print('Dataset {} was created'.format(type(self.dataset).__name__))
-        if (min(len(self.dataset), self.opt.max_dataset_size) % opt.batch_size != 0):
+        if (min(len(self.dataset), self.opt.max_dataset_size) % opt.batch_size != 0) and opt.phase == 'train':
             print('Warning, drop last batch')
             drop_last = True
         else:

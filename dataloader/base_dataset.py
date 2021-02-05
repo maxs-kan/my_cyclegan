@@ -11,10 +11,11 @@ class BaseDataset(data.Dataset, ABC):
     def __init__(self, opt):
         self.opt = opt
         self.root = opt.dataroot
-        self.scale = self.opt.max_distance / 2
+        self.scale = self.opt.max_distance / 2.
         self.IMG_EXTENSIONS = []
-        self.transforms = []
-        self.dir_A = os.path.join(self.root, self.opt.phase + 'A')
+        self.transforms_A = []
+        self.transforms_B = []
+        self.dir_A = os.path.join(self.root, self.opt.phase + 'A', 'full_size')
         self.dir_B = os.path.join(self.root, self.opt.phase + 'B')
         self.img_mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
         self.img_std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
@@ -36,6 +37,19 @@ class BaseDataset(data.Dataset, ABC):
         img_n = os.path.basename(file_path).split('.')[0]
         return img_n
     
+    def crop_indx(self, f_name):
+        i, j = f_name.split('_')[3:]
+        i, j = int(i), int(j)
+        h_start = 64 * i + 5
+        h_stop = h_start + 320
+        w_start = 64 * j + 5
+        w_stop = w_start + 320
+        return h_start, h_stop, w_start, w_stop
+    
+    def get_imp_matrx(self, f_name, path):
+        K = np.loadtxt(os.path.join(path, f_name[:12], 'intrinsic', 'intrinsic_depth.txt'))[:3,:3]
+        return K
+    
     def normalize_img(self, img):
         if isinstance(img, np.ndarray):
             if img.dtype == np.uint8:
@@ -56,7 +70,6 @@ class BaseDataset(data.Dataset, ABC):
         if isinstance(depth, np.ndarray):
             if depth.dtype == np.uint16:
                 depth = depth.astype(np.float32)
-                depth = np.where(depth>self.opt.max_distance, self.opt.max_distance, depth)
                 depth = depth / self.scale - 1.
                 return depth
             else:

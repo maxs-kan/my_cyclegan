@@ -280,13 +280,122 @@ class MaskedCosSimLoss(nn.Module):
         assert mask.dtype == torch.bool, 'mask shold be bool'
         loss = 1 - self.cos_sim(x, y)
         return torch.div(torch.sum(torch.mul(loss.unsqueeze(1), mask)), torch.add(torch.sum(mask), 1e+6))
+    
+class MSEv(torch.nn.MSELoss):
+    def __init__(self, reduction='mean'):
+        r"""
+
+        Parameters
+        ----------
+        reduction : str, optional
+            See `torch.MSELoss`
+        """
+        super().__init__(reduction=reduction)
+
+    def forward(self, output_normals, target_normals):
+        """Calculate MSEv loss.
+        """
+        loss = super().forward(output_normals, target_normals)
+        if self.reduction == 'none':
+            loss = loss.mean(-3, keepdim=True)
+        return loss
          
 class SurfaceNormals(nn.Module):
     
     def __init__(self):
         super(SurfaceNormals, self).__init__()
+        
+    def batch_arange(self, start, stop, step=1):
+        assert (stop >= start).all(), 'stop value should be greater or equal to start value'
+        N = (stop - start) // step
+        assert (N == N[0]).all(), 'all ranges have to be same length'
+        N = N[0]
+        steps = torch.empty_like(start)
+        steps[:] = step
+        return start[:, None] + steps[:, None] * torch.arange(N)
     
-    def forward(self, depth):
+    def batch_meshgrid(self, h_range, w_range):
+        N = h_range.shape[-1]
+        M = w_range.shape[-1]
+        h = h_range[..., None].expand(-1, -1, M)
+        w = w_range[:, None, :].expand(-1, N, -1)
+        return h, w
+    
+    def pc_to_normals(self, coords):
+        """Calculate surface normals using first order finite-differences.
+
+        Parameters
+        ----------
+        coords : array_like
+            Coordinates of the points (**, 3, h, w).
+
+        Returns
+        -------
+        normals : torch.Tensor
+            Surface normals (**, 3, h, w).
+        """
+        coords = torch.as_tensor(coords)
+        if coords.ndim < 4:
+            coords = coords[None]
+
+        dxdu = coords[..., 0, :, 1:] - coords[..., 0, :, :-1]
+        dydu = coords[..., 1, :, 1:] - coords[..., 1, :, :-1]
+        dzdu = coords[..., 2, :, 1:] - coords[..., 2, :, :-1]
+        dxdv = coords[..., 0, 1:, :] - coords[..., 0, :-1, :]
+        dydv = coords[..., 1, 1:, :] - coords[..., 1, :-1, :]
+        dzdv = coords[..., 2, 1:, :] - coords[..., 2, :-1, :]
+
+        dxdu = torch.nn.functional.pad(dxdu, (0, 1),       mode='replicate')
+        dydu = torch.nn.functional.pad(dydu, (0, 1),       mode='replicate')
+        dzdu = torch.nn.functional.pad(dzdu, (0, 1),       mode='replicate')
+
+        # pytorch cannot just do `dxdv = torch.nn.functional.pad(dxdv, (0, 0, 0, 1), mode='replicate')`, so
+        dxdv = torch.cat([dxdv, dxdv[..., -1:, :]], dim=-2)
+        dydv = torch.cat([dydv, dydv[..., -1:, :]], dim=-2)
+        dzdv = torch.cat([dzdv, dzdv[..., -1:, :]], dim=-2)
+
+        n_x = dydv * dzdu - dydu * dzdv
+        n_y = dzdv * dxdu - dzdu * dxdv
+        n_z = dxdv * dydu - dxdu * dydv
+
+        n = torch.stack([n_x, n_y, n_z], dim=-3)
+        n = torch.nn.functional.normalize(n, dim=-3)
+        return n
+        
+    def batch_pc(self, depth, depth_type, h, h_, w, w_, K, shift):
+        depth = torch.as_tensor(depth)
+        dtype = depth.dtype
+        K = torch.as_tensor(K, dtype=dtype)
+        h = torch.as_tensor(h, dtype=dtype)
+        h_ = torch.as_tensor(h_, dtype=dtype)
+        w = torch.as_tensor(w, dtype=dtype)
+        w_ = torch.as_tensor(w_, dtype=dtype)
+        
+        if depth.ndim < 4:  # ensure depth has channel dimension
+            depth = depth[:, None, :, :]
+        
+        v, u = self.batch_meshgrid(self.batch_arange(h, h_) + shift, self.batch_arange(w, w_ ) + shift)
+        ones = torch.ones_like(v)
+        points = torch.einsum('blk,bkij->blij', K.inverse(), torch.stack([u, v, ones],dim=1))
+        
+        if depth_type == 'orthogonal':
+            points = points / points[:, 2:3]
+            points = points.to(depth) * depth
+#         elif depth_type == 'perspective':
+#             points = torch.nn.functional.normalize(points, dim=-3)
+#             points = points.to(depth) * depth
+#         elif depth_type == 'disparity':
+#             points = points / points[2:3]
+#             z = calibration['baseline'] * K[0, 0] / depth
+#             points = points.to(depth) * z
+        else:
+            raise ValueError(f'Unknown type {depth_type}')
+        return points
+    
+    def forward(self, depth, K=None, crop=None, depth_type='orthogonal', shift=.5):
+#         h, h_, w, w_ = crop[:,0], crop[:,1], crop[:,2], crop[:,3]
+#         point = self.batch_pc(depth, depth_type, h, h_, w, w_, K, shift)
+#         return self.pc_to_normals(point)
         dzdx = -self.gradient_for_normals(depth, axis=2)
         dzdy = -self.gradient_for_normals(depth, axis=3)
         norm = torch.cat((dzdx, dzdy, torch.ones_like(depth)), dim=1)
@@ -441,6 +550,49 @@ class UnetSkipConnectionBlock(nn.Module):
         else:   # add skip connections
             return torch.cat([x, self.model(x)], 1)    
 ############################################################################################    
+class SpaceToDepth(nn.Module):
+# Source https://discuss.pytorch.org/t/is-there-any-layer-like-tensorflows-space-to-depth-function/3487/15
+    def __init__(self, block_size):
+        super().__init__()
+        self.bs = block_size
+
+    def forward(self, x):
+        N, C, H, W = x.size()
+        x = x.view(N, C, H // self.bs, self.bs, W // self.bs, self.bs)  # (N, C, H//bs, bs, W//bs, bs)
+        x = x.permute(0, 3, 5, 1, 2, 4).contiguous()  # (N, bs, bs, C, H//bs, W//bs)
+        x = x.view(N, C * (self.bs ** 2), H // self.bs, W // self.bs)  # (N, C*bs^2, H//bs, W//bs)
+        return x
+
+class PackBlock(nn.Module):
+    def __init__(self, input_nc, out_nc, scale, hidden_nc, use_bias):
+        super(PackBlock, self).__init__()
+        self.down_scale = SpaceToDepth(scale)
+        self.conv3d = nn.Conv3d(1, hidden_nc, kernel_size=3, padding=1, padding_mode='replicate')
+        self.conv2d = nn.Conv2d(scale**2*hidden_nc*input_nc, out_nc, kernel_size=3, padding=1, padding_mode='reflect', bias=use_bias)
+    def forward(self, x):
+        x = self.down_scale(x)
+        x = x.unsqueeze(1)
+        x = self.conv3d(x)
+        B, _, _, H, W = x.shape
+        x = x.reshape(B, -1, H, W)
+        x = self.conv2d(x)
+        return(x)
+    
+class UnPackBlock(nn.Module):
+    def __init__(self, input_nc, out_nc, scale, hidden_nc, use_bias):
+        super(UnPackBlock, self).__init__()
+        self.up_scale = nn.PixelShuffle(upscale_factor=scale)
+        self.conv3d = nn.Conv3d(1, hidden_nc, kernel_size=3, padding=1, padding_mode='replicate')
+        self.conv2d = nn.Conv2d(input_nc, scale**2 * int(out_nc/hidden_nc), kernel_size=3, padding=1, padding_mode='reflect', bias=use_bias)
+    def forward(self, x):
+        x = self.conv2d(x)
+        x = x.unsqueeze(1)
+        x = self.conv3d(x)
+        B, _, _, H, W = x.shape
+        x = x.reshape(B, -1, H, W)
+        x = self.up_scale(x)
+        return(x)
+
 
 class Encoder(nn.Module):
     def __init__(self, input_nc, base_nc, norm_layer, use_bias,  opt):
@@ -452,6 +604,7 @@ class Encoder(nn.Module):
         for i in range(opt.n_downsampling):
             mult = 2**i
             model += [nn.Conv2d(base_nc * mult, base_nc * mult * 2, kernel_size=4, stride=2, padding=1, dilation=1, padding_mode='reflect', bias=use_bias),
+#                       PackBlock(base_nc * mult, base_nc * mult * 2, scale=2, hidden_nc=4, use_bias=use_bias),
                       norm_layer(base_nc * mult * 2),
                       nn.ReLU(True)]
         self.model = nn.Sequential(*model)
@@ -467,6 +620,7 @@ class Decoder(nn.Module):
             mult = 2 ** (opt.n_downsampling - i)
             model += [
                 up_layer(mult * base_nc, int(base_nc * mult / 2), use_bias=use_bias, opt=opt),
+#                 UnPackBlock(mult * base_nc, int(base_nc * mult / 2), scale=2, hidden_nc=4, use_bias=use_bias),
                 norm_layer(int(base_nc * mult / 2)),
                 nn.ReLU(True)]
         model += [nn.Conv2d(base_nc, output_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='reflect', bias=True)]
@@ -644,6 +798,7 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
         self.input_type = input_type
         self.opt = opt
+        self.use_noise=use_noise
         norm_layer = get_norm_layer(norm_type=opt.norm)
         up_layer = get_upsampling(upsampling_type=opt.upsampling_type)
         if self.input_type == 'img_depth':
@@ -683,7 +838,7 @@ class Generator(nn.Module):
                 img, mu, std = self.enc_img(img, self_domain=self_domain)
             else:
                 img = self.enc_img(img, *mu, *std, self_domain)
-            if noise is not None:
+            if self.use_noise:
                 depth = torch.cat((depth, noise), dim=1)
             depth = self.enc_depth(depth)
             x = self.bottlenec(depth, img)

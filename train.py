@@ -43,7 +43,7 @@ if __name__ == '__main__':
     opt = TrainOptions().parse()   # get training options
     opt_v = copy.deepcopy(opt)
     opt_v.isTrain = False
-    opt_v.phase = 'test'
+    opt_v.phase = 'val'
     torch.cuda.set_device(opt.gpu_ids[0])
     torch.backends.cudnn.deterministic = opt.deterministic
     torch.backends.cudnn.benchmark = not opt.deterministic

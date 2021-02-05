@@ -33,81 +33,27 @@ class Visualizer():
                 else:
                     axes[i,j+1].imshow(imageio.imread(os.path.join(SAVE_PATH, name, 'val', domain, scene+'_depth_fake.png')),cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance)
     
-    def plot_crop(self, img_dict, v_min, v_max, h_min, h_max):
-        A_depth = util.tensor2im(img_dict['real_depth_A'], self.opt, isDepth=True)
-        B_depth_fake = util.tensor2im(img_dict['fake_depth_B'], self.opt, isDepth=True)
-        n_col = 2
-        n_row = 1
-        fig, axes = plt.subplots(nrows = n_row, ncols = n_col, figsize=(30, 30))
-        for ax in axes.flatten():
-            ax.axis('off')
-        axes[0].set_title('Real Depth')
-        axes[1].set_title('R-S Depth')
-        axes[0].imshow(A_depth[0][v_min:v_max,h_min:h_max],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance/1000)
-        axes[1].imshow(B_depth_fake[0][v_min:v_max,h_min:h_max],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=self.opt.max_distance/1000)
-        
-    def plot_batch_(self, batch):
-        A_imgs = util.tensor2im(batch['Image'], self.opt, isDepth=False)
-        B_depth = util.tensor2im(batch['Depth'], self.opt, isDepth=True)
-        A_depth = util.tensor2im(batch['Bad_depth'], self.opt, isDepth=True)
-        Adv_depth = util.tensor2im(batch['Adv_depth'], self.opt, isDepth=True)
-
-        n_col = 4
-        n_row = 1
-        fig, axes = plt.subplots(nrows = n_row, ncols = n_col, figsize=(50, 50))
-        fig.subplots_adjust(hspace=0.1, wspace=0.1)
-        for ax in axes.flatten():
-            ax.axis('off')
-        for i in range(1):
-            axes[0].imshow(A_imgs[i])
-            axes[1].imshow(A_depth[i], cmap=plt.get_cmap('RdYlBu'))
-            axes[2].imshow(B_depth[i], cmap=plt.get_cmap('RdYlBu'))
-            axes[3].imshow(Adv_depth[i], cmap=plt.get_cmap('RdYlBu'))
     
-    def plot_batch(self, batch):
-        A_imgs = util.tensor2im(batch['A_img'], self.opt, isDepth=False)
-        A_depth = util.tensor2im(batch['A_depth'], self.opt, isDepth=True)
-        B_depth = util.tensor2im(batch['B_depth'], self.opt, isDepth=True)
-        B_imgs = util.tensor2im(batch['B_img'], self.opt, isDepth=False)
-        if self.opt.use_semantic  and self.opt.isTrain:
-            A_semantic = batch['A_semantic'].numpy()
-            n_col = 3
-        else:
-            n_col = 2
-        n_row = 2
-        fig, axes = plt.subplots(nrows = n_row, ncols = n_col, figsize=(50, 50))
-        fig.subplots_adjust(hspace=0.1, wspace=0.1)
-        for ax in axes.flatten():
-            ax.axis('off')
-        for i in range(1):
-            
-            axes[2*i,0].imshow(A_imgs[i])
-            axes[2*i,1].imshow(A_depth[i], cmap=plt.get_cmap('RdYlBu'))
-            if self.opt.use_semantic  and self.opt.isTrain:
-                axes[2*i,2].imshow(A_semantic[i], cmap='jet', vmin=0, vmax=40)
-            
-            axes[2*i+1,0].imshow(B_imgs[i])
-            axes[2*i+1,1].imshow(B_depth[i],cmap=plt.get_cmap('RdYlBu'))
+    
     def save_img_metric(self, img_dict, path, model_name, phase):
         util.mkdirs(os.path.join(path, model_name, phase, 'A2B', 'depth'))
-        util.mkdirs(os.path.join(path, model_name, phase, 'A2B', 'normal'))
+#         util.mkdirs(os.path.join(path, model_name, phase, 'A2B', 'normal'))
         util.mkdirs(os.path.join(path, model_name, phase, 'B2A', 'depth'))
-        util.mkdirs(os.path.join(path, model_name, phase, 'B2A', 'normal'))
-        util.mkdirs(os.path.join(path, model_name, phase, 'A2B2A', 'depth'))
-        util.mkdirs(os.path.join(path, model_name, phase, 'A2B2A', 'normal'))
+#         util.mkdirs(os.path.join(path, model_name, phase, 'B2A', 'normal'))
+#         util.mkdirs(os.path.join(path, model_name, phase, 'A2B2A', 'depth'))
+#         util.mkdirs(os.path.join(path, model_name, phase, 'A2B2A', 'normal'))
 #         util.mkdirs(os.path.join(path, model_name, phase, 'B2A2B', 'depth'))
 #         util.mkdirs(os.path.join(path, model_name, phase, 'B2A2B', 'normal'))
-        B_depth_fake = util.tensor2im(img_dict['fake_depth_B'], self.opt, isDepth=True)*1000
-        A_rec = util.tensor2im(img_dict['rec_depth_A'], self.opt, isDepth=True)*1000
+        B_depth_fake = util.tensor2mm(img_dict['fake_depth_B'], self.opt)
         A_name = img_dict['name_A']
         
-        A_depth_fake = util.tensor2im(img_dict['fake_depth_A'], self.opt, isDepth=True)*1000
+        A_depth_fake = util.tensor2mm(img_dict['fake_depth_A'], self.opt)
         B_name = img_dict['name_B']
         for i in range(B_depth_fake.shape[0]):                       
-            imageio.imwrite(os.path.join(path, model_name, phase, 'A2B', 'depth', A_name[i]+'.png'), B_depth_fake[i].astype(np.uint16))
-            imageio.imwrite(os.path.join(path, model_name, phase, 'A2B2A', 'depth', A_name[i]+'.png'), A_rec[i].astype(np.uint16))
+            imageio.imwrite(os.path.join(path, model_name, phase, 'A2B', 'depth', A_name[i]+'.png'), B_depth_fake[i])
+#             imageio.imwrite(os.path.join(path, model_name, phase, 'A2B2A', 'depth', A_name[i]+'.png'), A_rec[i].astype(np.uint16))
 #             np.save(os.path.join(path, model_name, phase, 'A2B', 'normal', A_name[i]+'.npy'), util.get_normal_metric(B_depth_fake[i]))
-            imageio.imwrite(os.path.join(path, model_name, phase, 'B2A', B_name[i]+'.png'), A_depth_fake[i].astype(np.uint16))
+            imageio.imwrite(os.path.join(path, model_name, phase, 'B2A', 'depth', B_name[i]+'.png'), A_depth_fake[i])
 #             np.save(os.path.join(path, model_name, phase, 'B2A', 'normal', B_name[i]+'.npy'), util.get_normal_metric(A_depth_fake[i]))
             
     def save_img(self, img_dict, path, model_name, phase):
@@ -339,12 +285,12 @@ class Visualizer():
             axes[2*i,0].set_title('Real RGB')
             axes[2*i,1].set_title('Real Depth')
             axes[2*i,2].set_title('R-S Depth')
+#             axes[2*i,3].set_title('Cycle Cycle Depth A')
             axes[2*i,3].set_title('Cycle Depth A')
-#             axes[2*i,4].set_title('Cycle Cycle Depth A')
             axes[2*i,4].set_title('Real Norm')
             axes[2*i,5].set_title('R-S Norm')
+#             axes[2*i,7].set_title('Cycle Cycle Norm A')
             axes[2*i,6].set_title('Cycle Norm A')
-#             axes[2*i,8].set_title('Cycle Cycle Norm A')
             axes[2*i,7].set_title('Graph')
             
             axes[2*i+1,0].set_title('Syn RGB')
@@ -354,17 +300,19 @@ class Visualizer():
             axes[2*i+1,4].set_title('Syn Norm')
             axes[2*i+1,5].set_title('S-R Norm')
             axes[2*i+1,6].set_title('Cycle Norm B')
+#             axes[2*i+1,7].set_title('Cycle Norm B')
+#             axes[2*i+1,8].set_title('Cycle Norm B')
             axes[2*i+1,7].set_title('Graph')
-
+            
             axes[2*i,0].imshow(A_imgs[i])
             axes[2*i,1].imshow(A_depth[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
             axes[2*i,2].imshow(B_depth_fake[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
+#             axes[2*i,3].imshow(A_cycle_cycle[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
             axes[2*i,3].imshow(A_depth_rec[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
-#             axes[2*i,4].imshow(A_cycle_cycle[i],cmap=plt.get_cmap('RdYlBu'), vmin=0, vmax=max_dist)
             axes[2*i,4].imshow(A_norm[i])
             axes[2*i,5].imshow(B_norm_fake[i])
+#             axes[2*i,7].imshow(A_cycle_cycle_n[i])
             axes[2*i,6].imshow(A_norm_rec[i])
-#             axes[2*i,8].imshow(A_cycle_cycle_n[i])
             axes[2*i,7].plot(A_depth[i][100], label = 'Real Depth')
             axes[2*i,7].plot(B_depth_fake[i][100], label = 'R-S Depth')
             axes[2*i,7].legend()
@@ -376,11 +324,11 @@ class Visualizer():
             axes[2*i+1,4].imshow(B_norm[i])
             axes[2*i+1,5].imshow(A_norm_fake[i])
             axes[2*i+1,6].imshow(B_norm_rec[i])
+#             axes[2*i+1,7].imshow(A_norm_rec[i])
+#             axes[2*i+1,8].imshow(A_cycle_cycle_n[i])
             axes[2*i+1,7].plot(B_depth[i][100], label = 'Syn Depth')
             axes[2*i+1,7].plot(A_depth_fake[i][100], label = 'S-R Depth')
             axes[2*i+1,7].legend()
-#             axes[2*i+1,8].imshow(A_norm_rec[i])
-#             axes[2*i+1,9].imshow(A_cycle_cycle_n[i])
         self.logger.setLevel(old_level)                        
 #             fig.colorbar(r_d, ax=axes[2*i,1],fraction=0.046, pad=0.03)
         return fig

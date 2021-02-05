@@ -186,8 +186,8 @@ def fid_inception_v3():
     inception.Mixed_7b = FIDInceptionE_1(1280)
     inception.Mixed_7c = FIDInceptionE_2(2048)
 
-#     state_dict = load_state_dict_from_url(FID_WEIGHTS_URL, progress=True)
-    state_dict = torch.load('/workspace/metric/pt_inception-2015-12-05-6726825d.pth')
+    state_dict = load_state_dict_from_url(FID_WEIGHTS_URL, progress=True)
+#     state_dict = torch.load('/workspace/my_cyclegan/metric/pt_inception-2015-12-05-6726825d.pth')
     inception.load_state_dict(state_dict)
     return inception
 
@@ -310,10 +310,3 @@ class FIDInceptionE_2(models.inception.InceptionE):
 
         outputs = [branch1x1, branch3x3, branch3x3dbl, branch_pool]
         return torch.cat(outputs, 1)
-
-
-# In[ ]:
-
-
-
-
