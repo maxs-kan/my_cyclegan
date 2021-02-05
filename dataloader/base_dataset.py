@@ -15,7 +15,7 @@ class BaseDataset(data.Dataset, ABC):
         self.IMG_EXTENSIONS = []
         self.transforms_A = []
         self.transforms_B = []
-        self.dir_A = os.path.join(self.root, self.opt.phase + 'A', 'full_size')
+        self.dir_A = os.path.join(self.root, self.opt.phase + 'A')#, 'full_size')
         self.dir_B = os.path.join(self.root, self.opt.phase + 'B')
         self.img_mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
         self.img_std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
@@ -69,7 +69,7 @@ class BaseDataset(data.Dataset, ABC):
     def normalize_depth(self, depth):
         if isinstance(depth, np.ndarray):
             if depth.dtype == np.uint16:
-                depth = depth.astype(np.float32)
+                depth = depth.astype(np.float64)
                 depth = depth / self.scale - 1.
                 return depth
             else:
