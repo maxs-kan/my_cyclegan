@@ -63,9 +63,9 @@ class SemiCycleDataset(BaseDataset):
     def load_data(self, index):
         
         if  self.A_size != self.B_size:
-            if self.queue_A_index.empty():
-                self.update_A_idx()
-            index_A = self.queue_A_index.get()
+#             if self.queue_A_index.empty():
+#                 self.update_A_idx()
+            index_A = torch.randint(low=0, high=self.A_size, size=(1,)).item()#self.queue_A_index.get()
         else:
             index_A = index
         index_B = index
