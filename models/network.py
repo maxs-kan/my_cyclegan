@@ -305,14 +305,15 @@ class SurfaceNormals(nn.Module):
     def __init__(self):
         super(SurfaceNormals, self).__init__()
         
-    def batch_arange(self, start, stop, step=1):
+    def batch_arange(self, start, stop, step=1.):
+        dtype = start.dtype
         assert (stop >= start).all(), 'stop value should be greater or equal to start value'
         N = (stop - start) // step
         assert (N == N[0]).all(), 'all ranges have to be same length'
         N = N[0]
         steps = torch.empty_like(start)
         steps[:] = step
-        return start[:, None] + steps[:, None] * torch.arange(N)
+        return start[:, None] + steps[:, None] * torch.arange(N, dtype=dtype)
     
     def batch_meshgrid(self, h_range, w_range):
         N = h_range.shape[-1]
@@ -321,7 +322,7 @@ class SurfaceNormals(nn.Module):
         w = w_range[:, None, :].expand(-1, N, -1)
         return h, w
     
-    def pc_to_normals(self, coords):
+    def pc_to_normals(self, coords, order2=True):
         """Calculate surface normals using first order finite-differences.
 
         Parameters
@@ -334,31 +335,31 @@ class SurfaceNormals(nn.Module):
         normals : torch.Tensor
             Surface normals (**, 3, h, w).
         """
-        coords = torch.as_tensor(coords)
-        if coords.ndim < 4:
+        if coords.ndim < 4:  
             coords = coords[None]
-        dxdu = self.gradient_for_normals(coords[:, 0], axis=2)
-        dydu = self.gradient_for_normals(coords[:, 1], axis=2)
-        dzdu = self.gradient_for_normals(coords[:, 2], axis=2)
-        dxdv = self.gradient_for_normals(coords[:, 0], axis=1)
-        dydv = self.gradient_for_normals(coords[:, 1], axis=1)
-        dzdv = self.gradient_for_normals(coords[:, 2], axis=1)
+        if order2:
+            dxdu = self.gradient_for_normals(coords[:, 0], axis=2)
+            dydu = self.gradient_for_normals(coords[:, 1], axis=2)
+            dzdu = self.gradient_for_normals(coords[:, 2], axis=2)
+            dxdv = self.gradient_for_normals(coords[:, 0], axis=1)
+            dydv = self.gradient_for_normals(coords[:, 1], axis=1)
+            dzdv = self.gradient_for_normals(coords[:, 2], axis=1)
+        else:
+            dxdu = coords[..., 0, :, 1:] - coords[..., 0, :, :-1]
+            dydu = coords[..., 1, :, 1:] - coords[..., 1, :, :-1]
+            dzdu = coords[..., 2, :, 1:] - coords[..., 2, :, :-1]
+            dxdv = coords[..., 0, 1:, :] - coords[..., 0, :-1, :]
+            dydv = coords[..., 1, 1:, :] - coords[..., 1, :-1, :]
+            dzdv = coords[..., 2, 1:, :] - coords[..., 2, :-1, :]
+    
+            dxdu = torch.nn.functional.pad(dxdu, (0, 1),       mode='replicate')
+            dydu = torch.nn.functional.pad(dydu, (0, 1),       mode='replicate')
+            dzdu = torch.nn.functional.pad(dzdu, (0, 1),       mode='replicate')
 
-#         dxdu = coords[..., 0, :, 1:] - coords[..., 0, :, :-1]
-#         dydu = coords[..., 1, :, 1:] - coords[..., 1, :, :-1]
-#         dzdu = coords[..., 2, :, 1:] - coords[..., 2, :, :-1]
-#         dxdv = coords[..., 0, 1:, :] - coords[..., 0, :-1, :]
-#         dydv = coords[..., 1, 1:, :] - coords[..., 1, :-1, :]
-#         dzdv = coords[..., 2, 1:, :] - coords[..., 2, :-1, :]
-
-#         dxdu = torch.nn.functional.pad(dxdu, (0, 1),       mode='replicate')
-#         dydu = torch.nn.functional.pad(dydu, (0, 1),       mode='replicate')
-#         dzdu = torch.nn.functional.pad(dzdu, (0, 1),       mode='replicate')
-
-#         # pytorch cannot just do `dxdv = torch.nn.functional.pad(dxdv, (0, 0, 0, 1), mode='replicate')`, so
-#         dxdv = torch.cat([dxdv, dxdv[..., -1:, :]], dim=-2)
-#         dydv = torch.cat([dydv, dydv[..., -1:, :]], dim=-2)
-#         dzdv = torch.cat([dzdv, dzdv[..., -1:, :]], dim=-2)
+            # pytorch cannot just do `dxdv = torch.nn.functional.pad(dxdv, (0, 0, 0, 1), mode='replicate')`, so
+            dxdv = torch.cat([dxdv, dxdv[..., -1:, :]], dim=-2)
+            dydv = torch.cat([dydv, dydv[..., -1:, :]], dim=-2)
+            dzdv = torch.cat([dzdv, dzdv[..., -1:, :]], dim=-2)
 
         n_x = dydv * dzdu - dydu * dzdv
         n_y = dzdv * dxdu - dzdu * dxdv
@@ -369,16 +370,13 @@ class SurfaceNormals(nn.Module):
         return n
         
     def batch_pc(self, depth, depth_type, h, h_, w, w_, K, shift):
-        depth = torch.as_tensor(depth)
+        
         dtype = depth.dtype
         K = torch.as_tensor(K, dtype=dtype)
         h = torch.as_tensor(h, dtype=dtype)
         h_ = torch.as_tensor(h_, dtype=dtype)
         w = torch.as_tensor(w, dtype=dtype)
         w_ = torch.as_tensor(w_, dtype=dtype)
-        
-        if depth.ndim < 4:  # ensure depth has channel dimension
-            depth = depth[:, None, :, :]
         
         v, u = self.batch_meshgrid(self.batch_arange(h, h_) + shift, self.batch_arange(w, w_ ) + shift)
         ones = torch.ones_like(v)
