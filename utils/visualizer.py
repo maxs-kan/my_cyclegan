@@ -247,24 +247,24 @@ class Visualizer():
         return fig
     
     def plot_imgScannet(self, img_dict):
-        A_imgs = util.tensor2im(img_dict['real_img_A'], self.opt, isDepth=False)
-        A_depth = util.tensor2im(img_dict['real_depth_A'], self.opt, isDepth=True)
-        A_norm = util.get_normals(A_depth * 1000)
-        B_depth_fake = util.tensor2im(img_dict['fake_depth_B'], self.opt, isDepth=True)
-        B_norm_fake = util.get_normals(B_depth_fake * 1000)
-        A_depth_rec = util.tensor2im(img_dict['rec_depth_A'], self.opt, isDepth=True)
-        A_norm_rec = util.get_normals(A_depth_rec * 1000)
+        A_imgs = util.tensor2im(img_dict['real_img_A'], self.opt, input_type = 'img')
+        A_depth = util.tensor2im(img_dict['real_depth_A'], self.opt, input_type = 'depth')
+        A_norm = util.tensor2im(img_dict['real_norm_A'], self.opt, input_type = 'normals')
+        B_depth_fake = util.tensor2im(img_dict['fake_depth_B'], self.opt, input_type = 'depth')
+        B_norm_fake = util.tensor2im(img_dict['fake_norm_B'], self.opt, input_type = 'normals')
+        A_depth_rec = util.tensor2im(img_dict['rec_depth_A'], self.opt, input_type = 'depth')
+        A_norm_rec = util.tensor2im(img_dict['rec_norm_A'], self.opt, input_type = 'normals')
 #         A_cycle_cycle = util.tensor2im(img_dict['cycle_fake_B'], self.opt, isDepth=True)
 #         A_cycle_cycle_n = util.get_normals(A_cycle_cycle * 1000)
 #         A_idt = util.tensor2im(img_dict['idt_A'], self.opt, isDepth=True)
         
-        B_imgs = util.tensor2im(img_dict['real_img_B'], self.opt, isDepth=False)
-        B_depth = util.tensor2im(img_dict['real_depth_B'], self.opt, isDepth=True)
-        B_norm = util.get_normals(B_depth * 1000)
-        A_depth_fake = util.tensor2im(img_dict['fake_depth_A'], self.opt, isDepth=True)
-        A_norm_fake = util.get_normals(A_depth_fake * 1000)
-        B_depth_rec = util.tensor2im(img_dict['rec_depth_B'], self.opt, isDepth=True)
-        B_norm_rec = util.get_normals(B_depth_rec * 1000)
+        B_imgs = util.tensor2im(img_dict['real_img_B'], self.opt, input_type = 'img')
+        B_depth = util.tensor2im(img_dict['real_depth_B'], self.opt, input_type = 'depth')
+        B_norm = util.tensor2im(img_dict['real_norm_B'], self.opt, input_type = 'normals')
+        A_depth_fake = util.tensor2im(img_dict['fake_depth_A'], self.opt, input_type = 'depth')
+        A_norm_fake = util.tensor2im(img_dict['fake_norm_A'], self.opt, input_type = 'normals')
+        B_depth_rec = util.tensor2im(img_dict['rec_depth_B'], self.opt, input_type = 'depth')
+        B_norm_rec = util.tensor2im(img_dict['rec_norm_B'], self.opt, input_type = 'normals')
 #         B_idt = util.tensor2im(img_dict['idt_B'], self.opt, isDepth=True)
         
         max_dist = self.opt.max_distance/1000

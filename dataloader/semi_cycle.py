@@ -52,13 +52,12 @@ class SemiCycleDataset(BaseDataset):
         
     def __getitem__(self, index):
         
-#         A_depth, A_img, A_semantic, A_K, A_crop, B_depth, B_img, B_K, B_crop, A_img_n, B_img_n = self.load_data(index)
-        A_depth, A_img, A_semantic, B_depth, B_img, A_img_n, B_img_n = self.load_data(index)
+        A_depth, A_img, A_semantic, A_K, A_crop, A_norm, B_depth, B_img, B_K, B_crop, B_norm, A_img_n, B_img_n = self.load_data(index)
 #         if self.opt.use_semantic  and self.opt.isTrain:
 #             return {'A_depth': A_depth, 'A_img': A_img, 'A_semantic': A_semantic, 'A_name': A_img_n, 'B_depth': B_depth, 'B_img': B_img, 'B_name':B_img_n}
 #         else:
-        return {'A_depth': A_depth, 'A_img': A_img, 'A_name': A_img_n, 'B_depth': B_depth, 'B_img': B_img, 'B_name':B_img_n}
-#         return {'A_depth': A_depth, 'A_img': A_img, 'A_K':A_K, 'A_crop':A_crop, 'A_name': A_img_n, 'B_depth': B_depth, 'B_img': B_img, 'B_K':B_K, 'B_crop':B_crop, 'B_name':B_img_n}
+#         return {'A_depth': A_depth, 'A_img': A_img, 'A_name': A_img_n, 'B_depth': B_depth, 'B_img': B_img, 'B_name':B_img_n}
+        return {'A_depth': A_depth, 'A_norm':A_norm, 'A_img': A_img, 'A_K':A_K, 'A_crop':A_crop, 'A_name': A_img_n, 'B_depth': B_depth,'B_norm':B_norm, 'B_img': B_img, 'B_K':B_K, 'B_crop':B_crop, 'B_name':B_img_n}
     
     def load_data(self, index):
         
@@ -89,13 +88,13 @@ class SemiCycleDataset(BaseDataset):
         B_depth_n = self.get_name(B_depth_path)
         assert (B_img_n == B_depth_n), 'not pair img depth'
         
-#         A_K = self.get_imp_matrx(A_depth_n, self.intrinsic_mtrx_path)
-#         B_K = self.get_imp_matrx(B_depth_n, self.intrinsic_mtrx_path)
+        A_K = self.get_imp_matrx(A_depth_n)
+        B_K = self.get_imp_matrx(B_depth_n)
         
-#         A_h_start, A_h_stop, A_w_start, A_w_stop = self.crop_indx(A_depth_n)
-#         A_crop = np.array([A_h_start, A_h_stop, A_w_start, A_w_stop])
-#         B_h_start, B_h_stop, B_w_start, B_w_stop = self.crop_indx(B_depth_n)
-#         B_crop = np.array([B_h_start, B_h_stop, B_w_start, B_w_stop])
+        A_h_start, A_h_stop, A_w_start, A_w_stop = self.crop_indx(A_depth_n)
+        A_crop = np.array([A_h_start, A_h_stop, A_w_start, A_w_stop], dtype=np.int16)
+        B_h_start, B_h_stop, B_w_start, B_w_stop = self.crop_indx(B_depth_n)
+        B_crop = np.array([B_h_start, B_h_stop, B_w_start, B_w_stop],  dtype=np.int16)
         
         A_depth = self.read_data(A_depth_path)
         B_depth = self.read_data(B_depth_path)
@@ -109,13 +108,18 @@ class SemiCycleDataset(BaseDataset):
         
         A_depth, A_img, A_semantic = self.transform('A', A_depth, A_img, A_semantic)
         B_depth, B_img, _ = self.transform('B', B_depth, B_img)
+        
+        A_norm = self.get_normal(A_depth, A_depth_n)
+        B_norm = self.get_normal(B_depth, B_depth_n)
+        
+        A_depth = A_depth.type(torch.float32)
+        B_depth = B_depth.type(torch.float32)
+        
         if self.opt.isTrain:
             if self.bad_img(A_depth, A_img, B_depth, B_img):
                 print('Try new img')
-                A_depth, A_img, A_semantic, B_depth, B_img, A_img_n, B_img_n = self.load_data(torch.randint(low=0, high=self.B_size, size=(1,)).item())
-#                 A_depth, A_img, A_semantic, A_K, A_crop, B_depth, B_img, B_K, B_crop, A_img_n, B_img_n = self.load_data(torch.randint(low=0, high=self.B_size, size=(1,)).item())
-        return A_depth, A_img, A_semantic, B_depth, B_img, A_img_n, B_img_n
-#         return A_depth, A_img, A_semantic, A_K, A_crop, B_depth, B_img, B_K, B_crop, A_img_n, B_img_n
+                A_depth, A_img, A_semantic, A_K, A_crop, A_norm, B_depth, B_img, B_K, B_crop, B_norm, A_img_n, B_img_n = self.load_data(torch.randint(low=0, high=self.B_size, size=(1,)).item())
+        return A_depth, A_img, A_semantic, A_K, A_crop, A_norm, B_depth, B_img, B_K, B_crop, B_norm, A_img_n, B_img_n
         
     
     def bad_img(self, *imgs):
@@ -145,11 +149,11 @@ class SemiCycleDataset(BaseDataset):
     def add_base_transform(self):
         self.transforms_A.append(A.Resize(height=self.opt.load_size_h_A, width=self.opt.load_size_w_A, interpolation=4, p=1))
         self.transforms_B.append(A.Resize(height=self.opt.load_size_h_B, width=self.opt.load_size_w_B, interpolation=4, p=1))
-        if self.opt.isTrain:
-            self.transforms_A.append(A.RandomCrop(height=self.opt.crop_size_h, width=self.opt.crop_size_w, p=1))
-            self.transforms_B.append(A.RandomCrop(height=self.opt.crop_size_h, width=self.opt.crop_size_w, p=1))
-            self.transforms_A.append(A.HorizontalFlip(p=0.5))
-            self.transforms_B.append(A.HorizontalFlip(p=0.5))
+#         if self.opt.isTrain:
+#             self.transforms_A.append(A.RandomCrop(height=self.opt.crop_size_h, width=self.opt.crop_size_w, p=1))
+#             self.transforms_B.append(A.RandomCrop(height=self.opt.crop_size_h, width=self.opt.crop_size_w, p=1))
+#             self.transforms_A.append(A.HorizontalFlip(p=0.5))
+#             self.transforms_B.append(A.HorizontalFlip(p=0.5))
 #             self.transforms.append(A.VerticalFlip(p=0.5))
 #             self.transforms.append(A.Rotate(limit = [-30,30], p=0.8))
     

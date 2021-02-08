@@ -36,6 +36,7 @@ def logits_to_label(input):
     prob = F.softmax(input,dim=1)
     label = torch.argmax(prob, dim=1)
     return label.data.cpu().numpy()
+
 def data_to_meters(input, opt):
     scale = opt.max_distance / 2.0
     input = input * scale + scale
@@ -55,7 +56,7 @@ def tensor2mm(input, opt):
         numpy = tensor.cpu().permute(0,2,3,1).numpy().astype(np.uint16)[:,:,:,0]
     return numpy
 
-def tensor2im(input, opt, isDepth = True):
+def tensor2im(input, opt, input_type='depth'):
     """"Converts a Tensor array into a numpy image array in meters.
 
     Parameters:
@@ -66,10 +67,13 @@ def tensor2im(input, opt, isDepth = True):
             tensor = input.data
         else:
             return input
-        if isDepth:
+        if input_type == 'depth':
             tensor = data_to_meters(tensor, opt)
             numpy = tensor.cpu().permute(0,2,3,1).numpy()[:,:,:,0]
-        else:
+        elif input_type == 'normals':
+            tensor = (tensor + 1.) / 2.
+            numpy = tensor.cpu().permute(0,2,3,1).numpy()
+        elif input_type == 'img':
 #             tensor = tensor * 127.5 + 127.5
             tensor = tensor.cpu()
             std = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float32)[None, :, None, None]
@@ -77,6 +81,9 @@ def tensor2im(input, opt, isDepth = True):
             tensor = tensor * std + mean
             tensor = tensor * 255.
             numpy = tensor.permute(0,2,3,1).numpy().astype(np.uint8)
+            
+        else:
+            raise ValueError('Unknown input type {}'.format(input_type))
     else:  # if it is a numpy array, do nothing
         numpy = input
     return numpy
