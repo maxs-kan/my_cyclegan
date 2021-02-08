@@ -92,9 +92,9 @@ class SemiCycleDataset(BaseDataset):
         B_K = self.get_imp_matrx(B_depth_n)
         
         A_h_start, A_h_stop, A_w_start, A_w_stop = self.crop_indx(A_depth_n)
-        A_crop = np.array([A_h_start, A_h_stop, A_w_start, A_w_stop])
+        A_crop = np.array([A_h_start, A_h_stop, A_w_start, A_w_stop], dtype=np.int16)
         B_h_start, B_h_stop, B_w_start, B_w_stop = self.crop_indx(B_depth_n)
-        B_crop = np.array([B_h_start, B_h_stop, B_w_start, B_w_stop])
+        B_crop = np.array([B_h_start, B_h_stop, B_w_start, B_w_stop],  dtype=np.int16)
         
         A_depth = self.read_data(A_depth_path)
         B_depth = self.read_data(B_depth_path)

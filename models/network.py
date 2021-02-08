@@ -307,13 +307,14 @@ class SurfaceNormals(nn.Module):
         
     def batch_arange(self, start, stop, step=1.):
         dtype = start.dtype
+        device = start.device
         assert (stop >= start).all(), 'stop value should be greater or equal to start value'
         N = (stop - start) // step
         assert (N == N[0]).all(), 'all ranges have to be same length'
         N = N[0]
         steps = torch.empty_like(start)
         steps[:] = step
-        return start[:, None] + steps[:, None] * torch.arange(N, dtype=dtype)
+        return start[:, None] + steps[:, None] * torch.arange(N, dtype=dtype, device=device)
     
     def batch_meshgrid(self, h_range, w_range):
         N = h_range.shape[-1]
@@ -335,8 +336,7 @@ class SurfaceNormals(nn.Module):
         normals : torch.Tensor
             Surface normals (**, 3, h, w).
         """
-        if coords.ndim < 4:  
-            coords = coords[None]
+        assert coords.dtype == torch.float64
         if order2:
             dxdu = self.gradient_for_normals(coords[:, 0], axis=2)
             dydu = self.gradient_for_normals(coords[:, 1], axis=2)
@@ -352,9 +352,9 @@ class SurfaceNormals(nn.Module):
             dydv = coords[..., 1, 1:, :] - coords[..., 1, :-1, :]
             dzdv = coords[..., 2, 1:, :] - coords[..., 2, :-1, :]
     
-            dxdu = torch.nn.functional.pad(dxdu, (0, 1),       mode='replicate')
-            dydu = torch.nn.functional.pad(dydu, (0, 1),       mode='replicate')
-            dzdu = torch.nn.functional.pad(dzdu, (0, 1),       mode='replicate')
+            dxdu = torch.nn.functional.pad(dxdu, (0, 1), mode='replicate')
+            dydu = torch.nn.functional.pad(dydu, (0, 1), mode='replicate')
+            dzdu = torch.nn.functional.pad(dzdu, (0, 1), mode='replicate')
 
             # pytorch cannot just do `dxdv = torch.nn.functional.pad(dxdv, (0, 0, 0, 1), mode='replicate')`, so
             dxdv = torch.cat([dxdv, dxdv[..., -1:, :]], dim=-2)
@@ -372,6 +372,7 @@ class SurfaceNormals(nn.Module):
     def batch_pc(self, depth, depth_type, h, h_, w, w_, K, shift):
         
         dtype = depth.dtype
+        assert dtype == torch.float64
         K = torch.as_tensor(K, dtype=dtype)
         h = torch.as_tensor(h, dtype=dtype)
         h_ = torch.as_tensor(h_, dtype=dtype)
@@ -396,10 +397,12 @@ class SurfaceNormals(nn.Module):
             raise ValueError(f'Unknown type {depth_type}')
         return points
     
-    def forward(self, depth, K=None, crop=None, depth_type='orthogonal', shift=.5):
+    def forward(self, depth, K, crop, depth_type='orthogonal', shift=.5):
+        depth = depth.type(torch.float64)
+        depth = (depth + 1.) / 2.
         h, h_, w, w_ = crop[:,0], crop[:,1], crop[:,2], crop[:,3]
         point = self.batch_pc(depth, depth_type, h, h_, w, w_, K, shift)
-        return self.pc_to_normals(point)
+        return self.pc_to_normals(point).type(torch.float32)
 #         dzdx = -self.gradient_for_normals(depth, axis=2)
 #         dzdy = -self.gradient_for_normals(depth, axis=3)
 #         norm = torch.cat((dzdx, dzdy, torch.ones_like(depth)), dim=1)
