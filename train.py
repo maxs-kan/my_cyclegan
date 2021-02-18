@@ -34,7 +34,7 @@ def ploting_func(model):
         raise NotImplementedError('model [%s] is not found' % model)
     return f
 if __name__ == '__main__':
-    seed_value = 101
+    seed_value = 111
     os.environ['PYTHONHASHSEED']=str(seed_value)
     torch.manual_seed(seed_value)
     random.seed(seed_value)
@@ -47,7 +47,7 @@ if __name__ == '__main__':
     torch.cuda.set_device(opt.gpu_ids[0])
     torch.backends.cudnn.deterministic = opt.deterministic
     torch.backends.cudnn.benchmark = not opt.deterministic
-    torch.autograd.set_detect_anomaly(True)
+#     torch.autograd.set_detect_anomaly(True)
     
     vis = Visualizer(opt)
     plot = ploting_func(opt.model)

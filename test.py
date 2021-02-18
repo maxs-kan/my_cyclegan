@@ -1,11 +1,8 @@
 from options.test_options import TestOptions
 from dataloader import create_dataset
 from models import create_model
-from utils.visualizer import Visualizer
 from utils import util
 from tqdm import tqdm
-import numpy as np
-import matplotlib.pyplot as plt
 import torch
 import imageio
 import multiprocessing
@@ -30,7 +27,6 @@ if __name__ == '__main__':
     opt = TestOptions().parse()
     torch.cuda.set_device(opt.gpu_ids[0])
     dataset = create_dataset(opt)
-    vis = Visualizer(opt)
     dataset_size = len(dataset)        
     print('The number of test images = %d' % dataset_size)
     model = create_model(opt)      # create a model given opt.model and other options
@@ -65,9 +61,3 @@ if __name__ == '__main__':
     for p in processes:
         p.join()
     print("done!")
-        
-#     else:
-#         for data in tqdm(dataset.dataloader):
-#             model.set_input(data)
-#             model.test()
-#             vis.save_img(model.get_current_vis(), opt.img_dir, opt.name, opt.phase)

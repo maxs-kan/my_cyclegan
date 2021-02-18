@@ -381,8 +381,7 @@ class SurfaceNormals(nn.Module):
         
         v, u = self.batch_meshgrid(self.batch_arange(h, h_) + shift, self.batch_arange(w, w_ ) + shift)
         ones = torch.ones_like(v)
-        points = torch.einsum('blk,bkij->blij', K.inverse(), torch.stack([u, v, ones],dim=1))
-        
+        points = torch.einsum('blk,bkij->blij', K.inverse(), torch.stack([u, v, ones], dim=1))
         if depth_type == 'orthogonal':
             points = points / points[:, 2:3]
             points = points.to(depth) * depth

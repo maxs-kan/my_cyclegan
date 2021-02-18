@@ -79,14 +79,14 @@ class BaseOptions():
         parser.add_argument('--num_workers', default=4, type=int, help='# threads for loading data')
         parser.add_argument('--batch_size', type=int, default=8, help='input batch size')
 #         parser.add_argument('--pool_size', type=int, default=50, help='the size of image buffer that stores previously generated images')
-        parser.add_argument('--load_size_h_A', type=int, default=320, help='scale images to this size')
-        parser.add_argument('--load_size_w_A', type=int, default=320, help='scale images to this size')
-        parser.add_argument('--load_size_h_B', type=int, default=320, help='scale images to this size')#480
-        parser.add_argument('--load_size_w_B', type=int, default=320, help='scale images to this size')#640
+#         parser.add_argument('--load_size_h_A', type=int, default=480, help='scale images to this size')
+#         parser.add_argument('--load_size_w_A', type=int, default=640, help='scale images to this size')
+#         parser.add_argument('--load_size_h_B', type=int, default=320, help='scale images to this size')#480
+#         parser.add_argument('--load_size_w_B', type=int, default=320, help='scale images to this size')#640
         parser.add_argument('--crop_size_h', type=int, default=256, help='then crop to this size')
         parser.add_argument('--crop_size_w', type=int, default=256, help='then crop to this size')
         parser.add_argument('--hole_border', type=float, default=-0.97, help='value of holes')
-        parser.add_argument('--l_normal', type=float, default=40., help='weight for normals cycle loss')
+        parser.add_argument('--l_normal', type=float, default=1., help='weight for normals cycle loss')
         parser.add_argument('--l_hole_A', type=float, default=0.0, help='weight for mean_dif for B')
 
         # additional parameters
