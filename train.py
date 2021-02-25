@@ -41,9 +41,10 @@ if __name__ == '__main__':
     np.random.seed(seed_value)
     
     opt = TrainOptions().parse()   # get training options
-    opt_v = copy.deepcopy(opt)
-    opt_v.isTrain = False
-    opt_v.phase = 'val'
+    if opt.datasets != "Redwood_Redwood":
+        opt_v = copy.deepcopy(opt)
+        opt_v.isTrain = False
+        opt_v.phase = 'val'
     torch.cuda.set_device(opt.gpu_ids[0])
     torch.backends.cudnn.deterministic = opt.deterministic
     torch.backends.cudnn.benchmark = not opt.deterministic
@@ -57,9 +58,10 @@ if __name__ == '__main__':
     dataset = create_dataset(opt)  
     dataset_size = len(dataset)    
     print('The number of training images = {}'.format(dataset_size))
-    dataset_v = create_dataset(opt_v)  
-    dataset_size_v = len(dataset_v)    
-    print('The number of test images = {}'.format(dataset_size_v))
+    if opt.datasets != "Redwood_Redwood":
+        dataset_v = create_dataset(opt_v)  
+        dataset_size_v = len(dataset_v)    
+        print('The number of test images = {}'.format(dataset_size_v))
     model = create_model(opt)     
     model.setup()
     if not opt.debug:
@@ -85,26 +87,27 @@ if __name__ == '__main__':
                 if not opt.debug:
                     wandb.log({"chart": fig}, step=global_iter)
                 plt.close(fig)
-        print('Validation')
-        n_b = 0
-        for i, data in enumerate(dataset_v):
-            if (i+1) % 200 == 0:
-                print('{} img procesed out of {}'.format((i+1)*opt.batch_size, dataset_size_v))
-            n_b += 1
-            model.set_input(data)
-            model.test()
-            model.calc_test_loss()
-            if i == 0:
-                mean_loss = model.get_current_losses_test()
-            else:
-                mean_loss = acc_loss(mean_loss, model.get_current_losses_test())
-        fig = plot(model.get_current_vis())
-        if not opt.debug:
-            wandb.log({"chart_val": fig, 'Epoch':epoch}, step=global_iter)
-        plt.close(fig)
-        mean_loss = div_loss(mean_loss, n_b, epoch)
-        if not opt.debug:
-            wandb.log(mean_loss, step = global_iter)
+        if opt.datasets != "Redwood_Redwood":
+            print('Validation')
+            n_b = 0
+            for i, data in enumerate(dataset_v):
+                if (i+1) % 200 == 0:
+                    print('{} img procesed out of {}'.format((i+1)*opt.batch_size, dataset_size_v))
+                n_b += 1
+                model.set_input(data)
+                model.test()
+                model.calc_test_loss()
+                if i == 0:
+                    mean_loss = model.get_current_losses_test()
+                else:
+                    mean_loss = acc_loss(mean_loss, model.get_current_losses_test())
+            fig = plot(model.get_current_vis())
+            if not opt.debug:
+                wandb.log({"chart_val": fig, 'Epoch':epoch}, step=global_iter)
+            plt.close(fig)
+            mean_loss = div_loss(mean_loss, n_b, epoch)
+            if not opt.debug:
+                wandb.log(mean_loss, step = global_iter)
 
         if epoch % opt.save_epoch_freq == 0:              # cache our model every <save_epoch_freq> epochs
             print('saving the model at the end of epoch {}, iters {}'.format(epoch, global_iter))

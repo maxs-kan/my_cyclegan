@@ -16,13 +16,17 @@ class BaseDataset(data.Dataset, ABC):
         self.IMG_EXTENSIONS = []
         self.transforms_A = []
         self.transforms_B = []
-        if opt.phase == 'test':
-            self.dir_A = os.path.join(self.root, self.opt.phase + 'A', 'full_size')
-            self.dir_B = os.path.join(self.root, self.opt.phase + 'B', 'full_size')
-        elif opt.phase == 'train':
-            self.dir_A = os.path.join(self.root, self.opt.phase + 'A', 'full_size')
-            self.dir_B = os.path.join(self.root, self.opt.phase + 'B')
-        else:
+        if opt.datasets == 'Scannet_Scannet':
+            if opt.phase == 'test':
+                self.dir_A = os.path.join(self.root, self.opt.phase + 'A', 'full_size')
+                self.dir_B = os.path.join(self.root, self.opt.phase + 'B', 'full_size')
+            elif opt.phase == 'train':
+                self.dir_A = os.path.join(self.root, self.opt.phase + 'A', 'full_size')
+                self.dir_B = os.path.join(self.root, self.opt.phase + 'B')
+            else:
+                self.dir_A = os.path.join(self.root, self.opt.phase + 'A')
+                self.dir_B = os.path.join(self.root, self.opt.phase + 'B')
+        elif opt.datasets == 'Redwood_Redwood':
             self.dir_A = os.path.join(self.root, self.opt.phase + 'A')
             self.dir_B = os.path.join(self.root, self.opt.phase + 'B')
         self.img_mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
@@ -55,7 +59,10 @@ class BaseDataset(data.Dataset, ABC):
         return h_start, h_stop, w_start, w_stop
     
     def get_imp_matrx(self, f_name):
-        K = np.loadtxt(os.path.join(self.intrinsic_mtrx_path, f_name[:12], 'intrinsic', 'intrinsic_depth.txt'))[:3,:3]
+        if self.opt.datasets == 'Scannet_Scannet':
+            K = np.loadtxt(os.path.join(self.intrinsic_mtrx_path, f_name[:12], 'intrinsic', 'intrinsic_depth.txt'))[:3,:3]
+        elif self.opt.datasets == 'Redwood_Redwood':
+            K = np.array([[525., 0., 319.5], [0., 525., 239.5], [0., 0., 1.]])
         return K
     
     def normalize_img(self, img):

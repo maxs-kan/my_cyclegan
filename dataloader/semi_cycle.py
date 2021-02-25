@@ -90,6 +90,9 @@ class SemiCycleDataset(BaseDataset):
         B_depth_n = self.get_name(B_depth_path)
         assert (B_img_n == B_depth_n), 'not pair img depth'
         
+        if self.opt.phase == 'val':
+            assert A_depth_n==B_depth_n, 'not pair lq, hq depth'
+        
         A_K = self.get_imp_matrx(A_depth_n)
         B_K = self.get_imp_matrx(B_depth_n)
         
@@ -104,25 +107,38 @@ class SemiCycleDataset(BaseDataset):
         B_img = self.read_data(B_img_path)
         
         A_depth, A_img, _, A_r_crop = self.transform('A', A_depth, A_img)
-        if self.opt.phase == 'train':
-            A_crop = np.array(A_r_crop, dtype=np.int16)
-        elif self.opt.phase == 'val':
-            A_h_start, A_h_stop, A_w_start, A_w_stop = self.crop_indx(A_depth_n)
-            A_crop = np.array([A_h_start, A_h_stop, A_w_start, A_w_stop], dtype=np.int16)
-        else:
-            A_crop = np.array([0, 480, 0, 640], dtype=np.int16)
-        
-        B_depth, B_img, _ , B_r_crop = self.transform('B', B_depth, B_img)
-        if self.opt.phase != 'test':
-            B_h_start, B_h_stop, B_w_start, B_w_stop = self.crop_indx(B_depth_n)
+        if self.opt.datasets == 'Scannet_Scannet':
             if self.opt.phase == 'train':
-                B_h1, B_h2, B_w1, B_w2 = B_r_crop
-                B_crop = [B_h_start+B_h1, B_h_start+B_h2, B_w_start+B_w1, B_w_start+B_w2]
-                B_crop = np.array(B_crop,  dtype=np.int16)
+                A_crop = np.array(A_r_crop, dtype=np.int16)
+            elif self.opt.phase == 'val':
+                A_h_start, A_h_stop, A_w_start, A_w_stop = self.crop_indx(A_depth_n)
+                A_crop = np.array([A_h_start, A_h_stop, A_w_start, A_w_stop], dtype=np.int16)
             else:
-                B_crop = np.array([B_h_start, B_h_stop, B_w_start, B_w_stop],  dtype=np.int16)
-        else:
-            B_crop = np.array([0, 960, 0, 1280], dtype=np.int16)
+                A_crop = np.array([0, 480, 0, 640], dtype=np.int16)
+        elif self.opt.datasets == 'Redwood_Redwood':
+            if self.opt.phase == 'train':
+                A_crop = np.array(A_r_crop, dtype=np.int16)
+            else:
+                A_crop = np.array([0, 480, 0, 640], dtype=np.int16)
+                
+        B_depth, B_img, _ , B_r_crop = self.transform('B', B_depth, B_img)
+        if self.opt.datasets == 'Scannet_Scannet':
+            if self.opt.phase != 'test':
+                B_h_start, B_h_stop, B_w_start, B_w_stop = self.crop_indx(B_depth_n)
+                if self.opt.phase == 'train':
+                    B_h1, B_h2, B_w1, B_w2 = B_r_crop
+                    B_crop = [B_h_start+B_h1, B_h_start+B_h2, B_w_start+B_w1, B_w_start+B_w2]
+                    B_crop = np.array(B_crop,  dtype=np.int16)
+                else:
+                    B_crop = np.array([B_h_start, B_h_stop, B_w_start, B_w_stop],  dtype=np.int16)
+            else:
+                B_crop = np.array([0, 960, 0, 1280], dtype=np.int16)
+        elif self.opt.datasets == 'Redwood_Redwood':
+            if self.opt.phase == 'train':
+                B_crop = np.array(B_r_crop, dtype=np.int16)
+            else:
+                B_crop = np.array([0, 480, 0, 640], dtype=np.int16)
+
         
         if self.opt.isTrain:
             if self.bad_img(A_depth, A_img, B_depth, B_img):
@@ -156,21 +172,27 @@ class SemiCycleDataset(BaseDataset):
         return res
     
     def add_base_transform(self):
-        if self.opt.phase == 'train':
+        if self.opt.datasets == 'Scannet_Scannet':
+            if self.opt.phase == 'train':
+                h_A = 480
+                w_A = 640
+                h_B = 320
+                w_B = 320
+            elif self.opt.phase == 'val':
+                h_A = 320
+                w_A = 320
+                h_B = 320
+                w_B = 320
+            else:
+                h_A = 480
+                w_A = 640
+                h_B = 960
+                w_B = 1280
+        elif self.opt.datasets == 'Redwood_Redwood':
             h_A = 480
             w_A = 640
-            h_B = 320
-            w_B = 320
-        elif self.opt.phase == 'val':
-            h_A = 320
-            w_A = 320
-            h_B = 320
-            w_B = 320
-        else:
-            h_A = 480
-            w_A = 640
-            h_B = 960
-            w_B = 1280
+            h_B = 480
+            w_B = 640
         self.transforms_A.append(A.Resize(height=h_A, width=w_A, interpolation=4, p=1))
         self.transforms_B.append(A.Resize(height=h_B, width=w_B, interpolation=4, p=1))
     

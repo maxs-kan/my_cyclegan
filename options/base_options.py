@@ -22,6 +22,7 @@ class BaseOptions():
         
         # basic parameters
         parser.add_argument('--dataroot', type=str, default='/all_data/Scannet_ssim', help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
+        parser.add_argument('--datasets', type=str, default='Scannet_Scannet', help='| Redwood_Redwood')
         parser.add_argument('--int_mtrx_scan', type=str, default='/all_data/Scannet/', help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
         parser.add_argument('--name', type=str, default='test', help='name of the experiment. It decides where to store samples and models')
         parser.add_argument('--gpu_ids', type=str, default='1,2', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
