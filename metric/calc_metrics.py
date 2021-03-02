@@ -216,8 +216,10 @@ def calc_metrics_for_path(path_args, metric_names, max_depth):
 
     hole_map = input_orig < holes_threshold
     target_hole_map = target < holes_threshold
-    K = np.loadtxt(intrisic_path)[:3,:3] if intrisic_path is not None else None
-    
+    try:
+        K = np.loadtxt(intrisic_path)[:3,:3] 
+    except:
+        K = np.array([[525., 0., 319.5], [0., 525., 239.5], [0., 0., 1.]])
     return calc_metrics(pred, target, hole_map, target_hole_map, K, max_depth, metric_names)
 
 def calculate_given_paths(input_dir_path, pred_dir_path, target_dir_path, metric_names, max_depth, n_cpus):
@@ -227,8 +229,11 @@ def calculate_given_paths(input_dir_path, pred_dir_path, target_dir_path, metric
     
     #check that filenames are the same
     
-    intrinsic_names = list(map(lambda x: os.path.join('/all_data/Scannet', x[:12], 'intrinsic', 'intrinsic_depth.txt'),
+    try:
+        intrinsic_names = list(map(lambda x: os.path.join('/all_data/Scannet', x[:12], 'intrinsic', 'intrinsic_depth.txt'),
                                (filter_basename(input_name) for input_name in input_names)))
+    except:
+        intrinsic_names = [None for _ in input_names]
     _calc_metrics_for_path = functools.partial(calc_metrics_for_path, metric_names=metric_names, max_depth=max_depth)
     paths = zip(input_names, pred_names, target_names, intrinsic_names)
     with multiprocessing.Pool(n_cpus) as p:

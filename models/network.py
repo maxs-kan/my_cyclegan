@@ -598,6 +598,54 @@ class UnPackBlock(nn.Module):
         x = x.reshape(B, -1, H, W)
         x = self.up_scale(x)
         return(x)
+    
+def define_Sr(opt, type):
+    use_bias = opt.norm == 'instance'
+    if type == 'Up':
+        net = Sr_up(1, 1, 64, use_bias, 2, opt.norm)
+    elif type == 'Down':
+        net = Sr_down(1, 1, 64, use_bias, 2, opt.norm)
+    return init_net(net=net, gpu_ids=opt.gpu_ids)
+
+class Sr_down(nn.Module):
+    def __init__(self, input_nc, output_nc, base_nc, use_bias, sr_scale, norm):
+        super(Sr_down, self).__init__()
+        norm_layer = get_norm_layer(norm_type=norm)
+        model = [nn.Conv2d(input_nc, base_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='reflect', bias=use_bias),
+                 norm_layer(base_nc),
+                 nn.ReLU(True)
+                ]
+        for i in range(sr_scale//2):
+            mult = 2**i
+            model += [PackBlock(base_nc * mult, base_nc * mult * 2, scale=2, hidden_nc=4, use_bias=use_bias),
+                      norm_layer(base_nc * mult * 2),
+                      nn.ReLU(True)]
+        model += [nn.Conv2d(base_nc * mult * 2, output_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='reflect', bias=True)]
+        model += [nn.Tanh()]
+        self.model = nn.Sequential(*model)
+    
+    def forward(self, x):
+        return self.model(x)
+    
+class Sr_up(nn.Module):
+    def __init__(self, input_nc, output_nc, base_nc, use_bias, sr_scale, norm):
+        super(Sr_up, self).__init__()
+        norm_layer = get_norm_layer(norm)
+        model = [nn.Conv2d(input_nc, base_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='reflect', bias=use_bias),
+                 norm_layer(base_nc),
+                 nn.ReLU(True)
+                ]
+        for i in range(sr_scale//2):
+            mult = 2**i
+            model += [UnPackBlock(mult * base_nc, int(base_nc * mult / 2), scale=2, hidden_nc=4, use_bias=use_bias),
+                      norm_layer(int(base_nc * mult / 2)),
+                      nn.ReLU(True)]
+        model += [nn.Conv2d(int(base_nc * mult / 2), output_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='reflect', bias=True)]
+        model += [nn.Tanh()]
+        self.model = nn.Sequential(*model)
+    
+    def forward(self, x):
+        return self.model(x)
 
 
 class Encoder(nn.Module):
@@ -795,8 +843,8 @@ class AdaIN(nn.Module):
             std = torch.std(x.detach(), dim=(2,3), keepdim=True)
         else:
             assert mu is not None and std is not None, 'calc affine param first'
-            x = F.instance_norm(x)
-            x = x * std + mu
+#             x = F.instance_norm(x)
+#             x = x * std + mu
         return x, mu, std
 
 class Generator(nn.Module):

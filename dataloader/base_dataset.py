@@ -49,18 +49,29 @@ class BaseDataset(data.Dataset, ABC):
         img_n = os.path.basename(file_path).split('.')[0]
         return img_n
     
-    def crop_indx(self, f_name):
+    def crop_indx(self, f_name, sr=False):
         i, j = f_name.split('_')[3:]
         i, j = int(i), int(j)
-        h_start = 64 * i + 5
-        h_stop = h_start + 320
-        w_start = 64 * j + 5
-        w_stop = w_start + 320
+        if sr:
+            h_start = 128 * i + 10
+            h_stop = h_start + 640
+            w_start = 128 * j + 10
+            w_stop = w_start + 640
+        else:
+            h_start = 64 * i + 5
+            h_stop = h_start + 320
+            w_start = 64 * j + 5
+            w_stop = w_start + 320
         return h_start, h_stop, w_start, w_stop
     
-    def get_imp_matrx(self, f_name):
+    def get_imp_matrx(self, f_name, sr=False):
         if self.opt.datasets == 'Scannet_Scannet':
             K = np.loadtxt(os.path.join(self.intrinsic_mtrx_path, f_name[:12], 'intrinsic', 'intrinsic_depth.txt'))[:3,:3]
+            if sr:
+                K[0,0] *= 2.
+                K[1,1] *= 2.
+                K[0,2] *= 2.
+                K[1,2] *= 2.
         elif self.opt.datasets == 'Redwood_Redwood':
             K = np.array([[525., 0., 319.5], [0., 525., 239.5], [0., 0., 1.]])
         return K

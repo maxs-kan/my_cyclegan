@@ -261,7 +261,7 @@ class Visualizer():
         B_imgs = util.tensor2im(img_dict['real_img_B'], self.opt, input_type = 'img')
         B_depth = util.tensor2im(img_dict['real_depth_B'], self.opt, input_type = 'depth')
         B_norm = util.tensor2im(img_dict['real_norm_B'], self.opt, input_type = 'normals')
-        A_depth_fake = util.tensor2im(img_dict['fake_depth_A'], self.opt, input_type = 'depth')
+        A_depth_fake = util.tensor2im(img_dict['fake_depth_A_h'], self.opt, input_type = 'depth')
         A_norm_fake = util.tensor2im(img_dict['fake_norm_A'], self.opt, input_type = 'normals')
         B_depth_rec = util.tensor2im(img_dict['rec_depth_B'], self.opt, input_type = 'depth')
         B_norm_rec = util.tensor2im(img_dict['rec_norm_B'], self.opt, input_type = 'normals')

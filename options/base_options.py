@@ -86,9 +86,13 @@ class BaseOptions():
 #         parser.add_argument('--load_size_w_B', type=int, default=320, help='scale images to this size')#640
         parser.add_argument('--crop_size_h', type=int, default=256, help='then crop to this size')
         parser.add_argument('--crop_size_w', type=int, default=256, help='then crop to this size')
+        parser.add_argument('--crop_size_h_A', type=int, default=256, help='then crop to this size')
+        parser.add_argument('--crop_size_w_A', type=int, default=256, help='then crop to this size')
+        parser.add_argument('--crop_size_h_B', type=int, default=512, help='then crop to this size')
+        parser.add_argument('--crop_size_w_B', type=int, default=512, help='then crop to this size')
         parser.add_argument('--hole_border', type=float, default=-0.97, help='value of holes')
         parser.add_argument('--l_normal', type=float, default=1., help='weight for normals cycle loss')
-        parser.add_argument('--l_hole_A', type=float, default=0.0, help='weight for mean_dif for B')
+        parser.add_argument('--l_hole', type=float, default=0.0, help='weight for mean_dif for B')
 
         # additional parameters
         parser.add_argument('--deterministic', action='store_true', default=False, help='deterministic of cudnn, if true maybe slower')

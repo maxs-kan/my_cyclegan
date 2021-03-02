@@ -6,6 +6,7 @@ from utils.util import GaussianSmoothing
 from utils import util
 import torch
 import torch.nn as nn
+import numpy as np
 '''
 Pool for previous img
 --------------------
@@ -48,8 +49,8 @@ class SemiCycleGANModel(BaseModel, nn.Module):
         super(SemiCycleGANModel, self).__init__(opt)
         if self.isTrain:
             self.loss_names = ['G_A', 'G_B', 'depth_dif_A', 'depth_dif_B']
-#             if opt.l_hole_A > 0:
-#                 self.loss_names.extend(['hole_dif_A'])
+            if opt.l_hole > 0:
+                self.loss_names.extend(['hole_dif_B'])
 #             if opt.l_mean_A > 0:
 #                 self.loss_names.extend(['mean_dif_A'])
 #             if opt.l_mean_B > 0:
@@ -82,6 +83,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
                               'fake_depth_A', 
                               'name_A', 'name_B']
         if self.isTrain:
+            self.visuals_names.extend(['fake_depth_A_h'])
             self.visuals_names.extend(['fake_norm_B', 'fake_norm_A'])
             self.visuals_names.extend(['real_norm_A', 'real_norm_B'])
             self.visuals_names.extend(['rec_depth_A', 'rec_norm_A'])
@@ -199,7 +201,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
 #         if self.opt.use_pretrain_img2depth:
 #             inp_A = [self.real_depth_A, self.img_feature_A]
 #         else:
-        inp_A = [self.real_depth_A, self.real_img_A]
+#         inp_A = [self.real_depth_A, self.real_img_A]
 #         if self.opt.inp_B == 'depth':
 #             inp_B = [self.real_depth_B]
 #         else:
@@ -207,6 +209,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
             
             
         ###Fake depth
+        inp_A = [self.real_depth_A, self.real_img_A]
         self.fake_depth_B, mu_img_A, std_img_A = self.netG_A(*inp_A, self_domain=True, noise=torch.randn_like(self.real_depth_A))
         self.fake_depth_A, mu_img_B, std_img_B = self.netG_B(*inp_B, self_domain=True, noise=torch.randn_like(self.real_depth_B)) #
         
@@ -219,27 +222,27 @@ class SemiCycleGANModel(BaseModel, nn.Module):
         if self.isTrain:
             self.hole_mask_A = self.get_mask(self.real_depth_A)
             self.hole_mask_B = self.get_mask(self.fake_depth_A)
-            
             out = []
-            n = 5 if stage =='train' else 1
-            p = 0.80 if stage == 'train' else 0
-            for i in range(syn_depth.shape[0]):
+            n = 5 
+            p = .8
+            for i in range(self.real_depth_B.shape[0]):
                 number = np.random.randint(0,n)
-                xs = np.random.choice(syn_depth.shape[3], number, replace=False)
-                ys = np.random.choice(syn_depth.shape[2], number, replace=False)
-                sizes_x = np.random.randint(syn_depth.shape[3]//16, syn_depth.shape[3]//4, number)*np.random.binomial(1, p)
-                sizes_y = np.random.randint(syn_depth.shape[2]//16, syn_depth.shape[2]//4, number)*np.random.binomial(1, p)
-                ones = np.ones_like(syn_depth.detach().cpu().numpy()[0][0])
+                xs = np.random.choice(self.real_depth_B.shape[3] - self.real_depth_B.shape[3]//4, number, replace=False)
+                ys = np.random.choice(self.real_depth_B.shape[2] - self.real_depth_B.shape[2]//4, number, replace=False)
+                sizes_x = np.random.randint(self.real_depth_B.shape[3]//16, self.real_depth_B.shape[3]//4, number)*np.random.binomial(1, p)
+                sizes_y = np.random.randint(self.real_depth_B.shape[2]//16, self.real_depth_B.shape[2]//4, number)*np.random.binomial(1, p)
+                ones = np.zeros([self.real_depth_B.shape[2], self.real_depth_B.shape[3]], dtype=np.bool)
                 
                 for x, y, s_x, s_y in zip(xs,ys,sizes_x, sizes_y):
-                    ones[y:y+s_y, x:x+s_x]=0
-                    
-                ones = np.where((self.syn_mask[i][0].cpu().numpy()>0.05) & (ones<0.05), 0, 1)
+                    ones[y:y+s_y, x:x+s_x]=True
                 out.append(np.expand_dims(ones, 0))
-                
-            self.gt_mask_syn = torch.from_numpy(np.array(out)).to(syn_depth.device)
-
-            self.syn2real_depth_masked = torch.where(self.gt_mask_syn<0.05, torch.tensor(-1).float().to(syn_depth.device), syn_depth)
+                    
+            self.add_mask_B = torch.from_numpy(np.array(out)).to(self.device)
+            self.add_mask_B *= ~self.hole_mask_B
+        if self.isTrain:
+            self.fake_depth_A_h = torch.where(self.add_mask_B, torch.tensor(-1).float().to(self.device), self.fake_depth_A)
+#             self.real_depth_A[self.add_mask_A] = -1.
+            
         
         ###Cycle
 #         if self.isTrain and self.opt.use_cycle_A:
@@ -275,7 +278,7 @@ class SemiCycleGANModel(BaseModel, nn.Module):
 #             if self.opt.use_pretrain_img2depth:
 #                 inp_A_c = [self.fake_depth_A, self.img_feature_B]
 #             else:
-            inp_A_c = [self.fake_depth_A, self.real_img_B]
+            inp_A_c = [self.fake_depth_A_h, self.real_img_B]
 #             if self.opt.use_semi_cycle_first and self.isTrain:
 #                 self.set_requires_grad([self.netG_A], False)
 #                 self.rec_depth_B = self.netG_A(*inp_A_c, self_domain=False, mu=mu_img_A, std=std_img_A)
@@ -312,10 +315,6 @@ class SemiCycleGANModel(BaseModel, nn.Module):
     def backward_D_A(self):
 #         fake_B = self.fake_B_pool
         if self.opt.disc_for_depth:
-#             if self.opt.use_mean_matching:
-#                 self.real_shift_B, self.fake_shift_B = self.mean_matching(self.real_depth_B, self.fake_depth_B, direction='A2B')
-#                 self.loss_D_A_depth = self.backward_D_base(self.netD_A_depth, self.real_shift_B, self.fake_shift_B)
-#             else:
             self.loss_D_A_depth = self.backward_D_base(self.netD_A_depth, self.real_depth_B, self.fake_depth_B)
         if self.opt.disc_for_normals:
             self.loss_D_A_normal = self.backward_D_base(self.netD_A_normal, self.real_norm_B, self.fake_norm_B)
@@ -354,9 +353,13 @@ class SemiCycleGANModel(BaseModel, nn.Module):
 #             loss_A = loss_A + self.loss_cycle_cycle
         
         if self.opt.use_cycle_B:
-            self.loss_cycle_B = self.criterionL1(self.rec_depth_B, self.real_depth_B) * self.l_cycle_B
+            self.loss_cycle_B = self.criterionMaskedL1(self.rec_depth_B, self.real_depth_B, ~self.add_mask_B) * self.l_cycle_B
             self.loss_cycle_n_B = self.criterionMSE_v(self.rec_norm_B, self.real_norm_B) * self.opt.l_normal
             loss_B = loss_B + self.loss_cycle_B + self.loss_cycle_n_B
+            
+        if self.opt.l_hole > 0:
+            self.loss_hole_dif_B = self.criterionMaskedL1(self.rec_depth_B, self.real_depth_B, self.add_mask_B) * self.opt.l_hole
+            loss_B = loss_B + self.loss_hole_dif_B
         
 #         if self.opt.l_identity > 0:
 #             self.loss_idt_A = self.criterionL1(self.idt_A, self.real_depth_B) * self.opt.l_identity
@@ -364,9 +367,6 @@ class SemiCycleGANModel(BaseModel, nn.Module):
 #             self.loss_idt_B = self.criterionL1(self.idt_B, self.real_depth_A) * self.opt.l_identity
 #             loss_B = loss_B + self.loss_idt_B    
 
-#         if self.opt.l_hole_A > 0:
-#             self.loss_hole_dif_A = self.criterionMaskedL1(self.img_depth_A, self.fake_depth_A, self.hole_mask_A) * self.opt.l_hole_A
-#             loss_A = loss_A + self.loss_hole_dif_A
         
 #         if self.opt.l_mean_A > 0:
 #             self.loss_mean_dif_A = self.criterionMeanDif(self.fake_depth_B, self.real_depth_A, ~self.hole_mask_A) * self.opt.l_mean_A
