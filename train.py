@@ -24,6 +24,8 @@ def div_loss(d_acc, n, epoch):
 def ploting_func(model):
     if model == 'semi_cycle_gan':
         f = lambda imgs : vis.plot_imgScannet(imgs)
+    elif model == 'sr':
+        f = lambda imgs : vis.plot_imgSR(imgs)
     elif model == 'img2depth':
         f = lambda imgs : vis.plot_img2depth(imgs)
     elif model == 'pretrain':
@@ -31,7 +33,7 @@ def ploting_func(model):
     elif model == 'pretrain_A_hole':
         f = lambda imgs : vis.plot_pretrain_A(imgs)
     else:
-        raise NotImplementedError('model [%s] is not found' % model)
+        f = lambda imgs : vis.plot_imgScannet(imgs)
     return f
 if __name__ == '__main__':
     seed_value = 111
@@ -41,7 +43,7 @@ if __name__ == '__main__':
     np.random.seed(seed_value)
     
     opt = TrainOptions().parse()   # get training options
-    if opt.datasets != "Redwood_Redwood":
+    if opt.datasets == "Scannet_Scannet":
         opt_v = copy.deepcopy(opt)
         opt_v.isTrain = False
         opt_v.phase = 'val'
@@ -58,7 +60,7 @@ if __name__ == '__main__':
     dataset = create_dataset(opt)  
     dataset_size = len(dataset)    
     print('The number of training images = {}'.format(dataset_size))
-    if opt.datasets != "Redwood_Redwood":
+    if opt.datasets == "Scannet_Scannet":
         dataset_v = create_dataset(opt_v)  
         dataset_size_v = len(dataset_v)    
         print('The number of test images = {}'.format(dataset_size_v))
@@ -76,8 +78,10 @@ if __name__ == '__main__':
             model.set_input(data)
             model.optimize_param()
 #             torch.cuda.empty_cache()
-#             model.update_loss_weight(global_iter)
+            model.update_h_params(global_iter)
             iter_finish_time = time.time()
+            if (global_iter % opt.save_latest_freq == 0) and opt.save_by_iter:
+                model.save_net('{}_{}'.format(epoch, global_iter))
             if global_iter % opt.loss_freq == 0:
                 if not opt.debug:
                     wandb.log(model.get_current_losses(), step = global_iter)
@@ -87,7 +91,7 @@ if __name__ == '__main__':
                 if not opt.debug:
                     wandb.log({"chart": fig}, step=global_iter)
                 plt.close(fig)
-        if opt.datasets != "Redwood_Redwood":
+        if opt.datasets == "Scannet_Scannet":
             print('Validation')
             n_b = 0
             for i, data in enumerate(dataset_v):

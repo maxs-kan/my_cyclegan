@@ -1,0 +1,88 @@
+----------------- Options ---------------
+               batch_size: 10                            	[default: 8]
+                    beta1: 0.5                           
+          checkpoints_dir: ./checkpoints                 
+           continue_train: False                         
+              crop_size_h: 256                           
+              crop_size_w: 256                           
+                 dataroot: /all_data/Scannet_ssim        
+             dataset_mode: semi_cycle                    
+                 datasets: Scannet_Scannet               
+                    debug: False                         
+            deterministic: False                         
+           disc_for_depth: True                          	[default: False]
+         disc_for_normals: True                          	[default: False]
+                  dropout: False                         
+              epoch_count: 1                             
+                 gan_mode: lsgan                         
+                  gpu_ids: 0,1                           	[default: 1,2]
+              hole_border: -0.97                         
+            img2depth_dir: ./checkpoints/img2d_pretrain/ 
+                 img_freq: 80                            	[default: 1]
+                init_type: normal                        
+                    inp_B: img_depth                     
+           input_nc_depth: 1                             
+             input_nc_img: 3                             
+            int_mtrx_scan: /all_data/Scannet/            
+                  isTrain: True                          	[default: None]
+          l_cycle_A_begin: 0.0                           
+            l_cycle_A_end: 0.0                           
+          l_cycle_B_begin: 1.0                           	[default: 0.0]
+            l_cycle_B_end: 1.0                           	[default: 0.0]
+          l_depth_A_begin: 1.0                           	[default: 0.0]
+            l_depth_A_end: 1.0                           	[default: 0.0]
+          l_depth_B_begin: 1.0                           	[default: 0.0]
+            l_depth_B_end: 1.0                           	[default: 0.0]
+                   l_hole: 10.0                          	[default: 0.0]
+               l_max_iter: 30000                         	[default: 5000]
+                 l_normal: 1.0                           
+               l_num_iter: 20000                         	[default: 5000]
+               load_epoch: last                          
+     load_epoch_img2depth: last                          
+       load_epoch_weights: 10                            
+                load_iter: 0                             	[default: 0]
+                loss_freq: 40                            	[default: 1]
+                     lr_D: 0.0001                        	[default: 0.0002]
+                     lr_G: 0.0003                        	[default: 0.0002]
+           lr_decay_iters: 50                            
+                lr_policy: linear                        
+         max_dataset_size: inf                           
+             max_distance: 5100.0                        
+                    model: semi_cycle_gan                
+                 n_blocks: 9                             
+           n_downsampling: 2                             
+                 n_epochs: 15                            	[default: 1]
+           n_epochs_decay: 5                             	[default: 1]
+               n_layers_D: 3                             
+                    n_pic: 3                             
+                     name: disc_depth                    	[default: test]
+                      ndf: 64                            
+                     netD: n_layers                      
+                ngf_depth: 32                            
+                  ngf_img: 32                            
+          ngf_img_feature: 32                            
+          no_data_shuffle: False                         
+                     norm: group                         
+                   norm_d: none                          
+             num_iter_dis: 1                             
+             num_iter_gen: 1                             
+              num_workers: 4                             
+          output_nc_depth: 1                             
+            output_nc_img: 41                            
+                    phase: train                         
+          save_epoch_freq: 10                            
+          upsampling_type: transpose                     
+              use_cycle_A: False                         
+              use_cycle_B: True                          	[default: False]
+           use_cycle_disc: False                         
+   use_pretrain_img2depth: False                         
+   use_pretrain_weights_A: False                         
+   use_pretrain_weights_B: False                         
+             use_semantic: False                         
+     use_semi_cycle_first: False                         
+    use_semi_cycle_second: False                         
+               use_spnorm: True                          	[default: False]
+                  verbose: False                         
+                w_decay_G: 0.0001                        
+              weights_dir: ./checkpoints/pretrain_weights_imgdepht/
+----------------- End -------------------

@@ -24,13 +24,11 @@ def get_upsampling(upsampling_type='transpose'):
         up_layer = functools.partial(ConvTranspose)
     elif upsampling_type == 'upconv':
         up_layer = functools.partial(UpConv)
-    elif upsampling_type == 'uptranspose':
-        up_layer = functools.partial(UpTranspose)
     else:
         raise NotImplementedError('upsample layer [%s] is not found' % norm_type)
     return up_layer    
 
-def get_norm_layer(norm_type='instance'):
+def get_norm_layer(norm_type='instance', n_gr=8):
     """Return a normalization layer
 
     Parameters:
@@ -42,7 +40,7 @@ def get_norm_layer(norm_type='instance'):
     if norm_type == 'batch':
         norm_layer = functools.partial(nn.BatchNorm2d, affine=True, track_running_stats=True)
     elif norm_type == 'group':
-        norm_layer = lambda n_ch : nn.GroupNorm(num_groups=8, num_channels=n_ch, affine=True)#functools.partial(nn.GroupNorm, num_groups=8, affine=True)
+        norm_layer = lambda n_ch : nn.GroupNorm(num_groups=n_gr, num_channels=n_ch, affine=True)#functools.partial(nn.GroupNorm, num_groups=8, affine=True)
     elif norm_type == 'instance':
         norm_layer = functools.partial(nn.InstanceNorm2d, affine=False, track_running_stats=False)
     elif norm_type == 'none':
@@ -401,7 +399,7 @@ class SurfaceNormals(nn.Module):
         depth = (depth + 1.) / 2.
         h, h_, w, w_ = crop[:,0], crop[:,1], crop[:,2], crop[:,3]
         point = self.batch_pc(depth, depth_type, h, h_, w, w_, K, shift)
-        return self.pc_to_normals(point).type(torch.float32)
+        return self.pc_to_normals(point, order2=True).type(torch.float32)
 #         dzdx = -self.gradient_for_normals(depth, axis=2)
 #         dzdy = -self.gradient_for_normals(depth, axis=3)
 #         norm = torch.cat((dzdx, dzdy, torch.ones_like(depth)), dim=1)
@@ -599,53 +597,43 @@ class UnPackBlock(nn.Module):
         x = self.up_scale(x)
         return(x)
     
-def define_Sr(opt, type):
-    use_bias = opt.norm == 'instance'
-    if type == 'Up':
-        net = Sr_up(1, 1, 64, use_bias, 2, opt.norm)
-    elif type == 'Down':
-        net = Sr_down(1, 1, 64, use_bias, 2, opt.norm)
-    return init_net(net=net, gpu_ids=opt.gpu_ids)
+# def define_Sr(opt, type):
+#     use_bias = opt.norm == 'instance'
+#     if type == 'Up':
+#         net = Sr_up(opt.ngf_img + opt.ngf_depth, 1, use_bias, opt.norm)
+#     elif type == 'Down':
+#         net = Sr_down(opt.ngf_img + opt.ngf_depth, 1, use_bias, opt.norm)
+#     return init_net(net=net, gpu_ids=opt.gpu_ids)
 
-class Sr_down(nn.Module):
-    def __init__(self, input_nc, output_nc, base_nc, use_bias, sr_scale, norm):
-        super(Sr_down, self).__init__()
-        norm_layer = get_norm_layer(norm_type=norm)
-        model = [nn.Conv2d(input_nc, base_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='reflect', bias=use_bias),
-                 norm_layer(base_nc),
-                 nn.ReLU(True)
-                ]
-        for i in range(sr_scale//2):
-            mult = 2**i
-            model += [PackBlock(base_nc * mult, base_nc * mult * 2, scale=2, hidden_nc=4, use_bias=use_bias),
-                      norm_layer(base_nc * mult * 2),
-                      nn.ReLU(True)]
-        model += [nn.Conv2d(base_nc * mult * 2, output_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='reflect', bias=True)]
-        model += [nn.Tanh()]
-        self.model = nn.Sequential(*model)
+# class Sr_down(nn.Module):
+#     def __init__(self, base_nc, output_nc, use_bias, norm):
+#         super(Sr_down, self).__init__()
+#         norm_layer = get_norm_layer(norm_type=norm)
+#         model = []
+#         model += [PackBlock(base_nc, int(base_nc / 2), scale=2, hidden_nc=4, use_bias=use_bias),
+#                    norm_layer(int(base_nc / 2)),
+#                    nn.ReLU(True)]
+#         model += [nn.Conv2d(int(base_nc / 2), output_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='reflect', bias=True)]
+#         model += [nn.Tanh()]
+#         self.model = nn.Sequential(*model)
     
-    def forward(self, x):
-        return self.model(x)
+#     def forward(self, x):
+#         return self.model(x)
     
-class Sr_up(nn.Module):
-    def __init__(self, input_nc, output_nc, base_nc, use_bias, sr_scale, norm):
-        super(Sr_up, self).__init__()
-        norm_layer = get_norm_layer(norm)
-        model = [nn.Conv2d(input_nc, base_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='reflect', bias=use_bias),
-                 norm_layer(base_nc),
-                 nn.ReLU(True)
-                ]
-        for i in range(sr_scale//2):
-            mult = 2**i
-            model += [UnPackBlock(mult * base_nc, int(base_nc * mult / 2), scale=2, hidden_nc=4, use_bias=use_bias),
-                      norm_layer(int(base_nc * mult / 2)),
-                      nn.ReLU(True)]
-        model += [nn.Conv2d(int(base_nc * mult / 2), output_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='reflect', bias=True)]
-        model += [nn.Tanh()]
-        self.model = nn.Sequential(*model)
+# class Sr_up(nn.Module):
+#     def __init__(self, base_nc, output_nc, use_bias, norm):
+#         super(Sr_up, self).__init__()
+#         norm_layer = get_norm_layer(norm)
+#         model = []
+#         model += [UnPackBlock(base_nc, int(base_nc / 2), scale=2, hidden_nc=4, use_bias=use_bias),
+#                    norm_layer(int(base_nc / 2)),
+#                    nn.ReLU(True)]
+#         model += [nn.Conv2d(int(base_nc / 2), output_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='reflect', bias=True)]
+#         model += [nn.Tanh()]
+#         self.model = nn.Sequential(*model)
     
-    def forward(self, x):
-        return self.model(x)
+#     def forward(self, x):
+#         return self.model(x)
 
 
 class Encoder(nn.Module):
@@ -687,6 +675,12 @@ class Decoder(nn.Module):
     
     def forward(self, x):
         return self.model(x)
+#         for layer in self.model:
+#             classname = layer.__class__.__name__
+#             if classname == 'Conv2d':
+#                 features = x
+#             x = layer(x)
+#         return x, features
 
 class ConvTranspose(nn.Module):
     def __init__(self,in_chanels, out_chanels, use_bias, opt):
@@ -749,89 +743,88 @@ class ResnetBlock(nn.Module):
         out = x + self.conv_block(x)
         return out
 
-def define_Gen(opt, input_type, out_type='depth', use_noise=False):
+def define_Gen(opt, input_type, out_type='depth', use_noise=False, return_features=False):
     use_bias = opt.norm == 'instance'
     if input_type == 'img' and out_type == 'feature':
         net = GeneratorI_F(opt, use_bias)
     elif input_type == 'feature' and out_type == 'depth':
         net = GeneratorF_D(opt, use_bias)
     else:
-        net = Generator(opt, input_type, use_bias, use_noise)
+        net = Generator(opt, input_type, use_bias, use_noise, return_features)
     return init_net(net=net, gpu_ids=opt.gpu_ids)
 
-class GeneratorI_F(nn.Module):
-    def __init__(self, opt, use_bias):
-        super(GeneratorI_F, self).__init__()
-        norm_layer = get_norm_layer(norm_type=opt.norm)
-        self.opt = opt
-        base_nc = opt.ngf_img_feature
-        self.enc = Encoder(input_nc=opt.input_nc_img, base_nc=base_nc, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
-        self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks = 6, norm_layer=norm_layer, use_bias=use_bias, opt=opt, use_dilation=True)
-        init_weights(net=self.enc, init_type=opt.init_type, init_gain='relu')
-        init_weights(net=self.bottlenec, init_type=opt.init_type, init_gain='relu')
-    def forward(self, x):
-        x = self.enc(x)
-        return self.bottlenec(x)
+# class GeneratorI_F(nn.Module):
+#     def __init__(self, opt, use_bias):
+#         super(GeneratorI_F, self).__init__()
+#         norm_layer = get_norm_layer(norm_type=opt.norm)
+#         self.opt = opt
+#         base_nc = opt.ngf_img_feature
+#         self.enc = Encoder(input_nc=opt.input_nc_img, base_nc=base_nc, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
+#         self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks = 6, norm_layer=norm_layer, use_bias=use_bias, opt=opt, use_dilation=True)
+#         init_weights(net=self.enc, init_type=opt.init_type, init_gain='relu')
+#         init_weights(net=self.bottlenec, init_type=opt.init_type, init_gain='relu')
+#     def forward(self, x):
+#         x = self.enc(x)
+#         return self.bottlenec(x)
 
-class GeneratorF_D(nn.Module):
-    def __init__(self, opt, use_bias):
-        super(GeneratorF_D, self).__init__()
-        norm_layer = get_norm_layer(norm_type=opt.norm)
-        up_layer = get_upsampling(upsampling_type=opt.upsampling_type)
-        self.opt = opt
-        base_nc = opt.ngf_img_feature
-        self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks = 9, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
-        self.dec = Decoder(base_nc=base_nc, output_nc=opt.output_nc_depth, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='depth')
-        init_weights(net=self.bottlenec, init_type=opt.init_type, init_gain='relu')
-        init_weights(net=self.dec, init_type=opt.init_type, init_gain='relu')
-    def forward(self, x):
-        x = self.bottlenec(x)
-        return self.dec(x)
+# class GeneratorF_D(nn.Module):
+#     def __init__(self, opt, use_bias):
+#         super(GeneratorF_D, self).__init__()
+#         norm_layer = get_norm_layer(norm_type=opt.norm)
+#         up_layer = get_upsampling(upsampling_type=opt.upsampling_type)
+#         self.opt = opt
+#         base_nc = opt.ngf_img_feature
+#         self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks = 9, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
+#         self.dec = Decoder(base_nc=base_nc, output_nc=opt.output_nc_depth, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='depth')
+#         init_weights(net=self.bottlenec, init_type=opt.init_type, init_gain='relu')
+#         init_weights(net=self.dec, init_type=opt.init_type, init_gain='relu')
+#     def forward(self, x):
+#         x = self.bottlenec(x)
+#         return self.dec(x)
     
 class EncoderImg(nn.Module):
     def __init__(self, input_nc, base_nc, norm_layer, use_bias,  opt):
         super(EncoderImg, self).__init__()
-        vgg = torch.hub.load('pytorch/vision:v0.6.0', 'vgg19', pretrained=True).features[:8]
-        self.adain = AdaIN()
-        self.conv1_0 = vgg[0]
-        self.conv1_1 = vgg[2]
-        self.conv2_0 = vgg[5]
-        self.conv2_1 = vgg[7]
-#         model = [nn.Conv2d(input_nc, base_nc, kernel_size=7, stride=1, padding=3, dilation=1, padding_mode='reflect', bias=use_bias),
-#                  norm_layer(base_nc),
-#                  nn.ReLU(True)
-#                 ]
-#         for i in range(opt.n_downsampling):
-#             mult = 2**i
-#             model += [nn.Conv2d(base_nc * mult, base_nc * mult * 2, kernel_size=4, stride=2, padding=1, dilation=1, padding_mode='reflect', bias=use_bias),
-#                       norm_layer(base_nc * mult * 2),
-#                       nn.ReLU(True)]
-#         model += [nn.Conv2d(base_nc * mult * 2, base_nc * mult * 2, kernel_size=3, stride=1, padding=1, dilation=1, padding_mode='reflect', bias=True)]    
-#         self.model = nn.Sequential(*model)
+        self.use_ada = opt.use_ada
+        if opt.use_ada:
+            vgg = torch.hub.load('pytorch/vision:v0.6.0', 'vgg19', pretrained=True).features[:8]
+            self.adain = AdaIN()
+            self.conv1_0 = vgg[0]
+            self.conv1_1 = vgg[2]
+            self.conv2_0 = vgg[5]
+            self.conv2_1 = vgg[7]
+        else:
+            self.enc = Encoder(input_nc=input_nc, base_nc=base_nc, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
     
     def forward(self, x, mu1_0=None, mu1_1=None, mu2_0=None, mu2_1=None, std1_0=None, std1_1=None, std2_0=None, std2_1=None, self_domain=True):
-        with torch.no_grad():
-            x = self.conv1_0(x)
-            x = F.relu(x, True)
-            x, mu1_0, std1_0 = self.adain(x, self_domain, mu1_0, std1_0) 
-            
-            x = self.conv1_1(x)
-            x = F.relu(x, True)
-            x, mu1_1, std1_1 = self.adain(x, self_domain, mu1_1, std1_1)
-            x = F.max_pool2d(x, kernel_size=2, stride=2, padding=0, dilation=1)
-            
-            x = self.conv2_0(x)
-            x = F.relu(x, True)
-            x, mu2_0, std2_0 = self.adain(x, self_domain, mu2_0, std2_0)
-            
-            x = self.conv2_1(x)
-            x = F.relu(x, True)
-            x, mu2_1, std2_1 = self.adain(x, self_domain, mu2_1, std2_1)
-            x = F.max_pool2d(x, kernel_size=2, stride=2, padding=0, dilation=1)
+        if self.use_ada:
+            with torch.no_grad():
+                x = self.conv1_0(x)
+                x = F.relu(x, True)
+                x, mu1_0, std1_0 = self.adain(x, self_domain, mu1_0, std1_0) 
+                
+                x = self.conv1_1(x)
+                x = F.relu(x, True)
+                x, mu1_1, std1_1 = self.adain(x, self_domain, mu1_1, std1_1)
+                x = F.max_pool2d(x, kernel_size=2, stride=2, padding=0, dilation=1)
+                
+                x = self.conv2_0(x)
+                x = F.relu(x, True)
+                x, mu2_0, std2_0 = self.adain(x, self_domain, mu2_0, std2_0)
+                
+                x = self.conv2_1(x)
+                x = F.relu(x, True)
+                x, mu2_1, std2_1 = self.adain(x, self_domain, mu2_1, std2_1)
+                x = F.max_pool2d(x, kernel_size=2, stride=2, padding=0, dilation=1)
+                if self_domain:
+                    return x, [mu1_0, mu1_1, mu2_0, mu2_1], [std1_0, std1_1, std2_0, std2_1]
+                else: 
+                    return x
+        else:
             if self_domain:
-                return x, [mu1_0, mu1_1, mu2_0, mu2_1], [std1_0, std1_1, std2_0, std2_1]
-            else: 
-                return x
+                return self.enc(x), [mu1_0, mu1_1, mu2_0, mu2_1], [std1_0, std1_1, std2_0, std2_1]
+            else:
+                return self.enc(x)
     
 class AdaIN(nn.Module):
     def __init__(self):
@@ -843,17 +836,17 @@ class AdaIN(nn.Module):
             std = torch.std(x.detach(), dim=(2,3), keepdim=True)
         else:
             assert mu is not None and std is not None, 'calc affine param first'
-#             x = F.instance_norm(x)
-#             x = x * std + mu
+            x = F.instance_norm(x)
+            x = x * std + mu
         return x, mu, std
 
 class Generator(nn.Module):
-    def __init__(self, opt, input_type, use_bias, use_noise=False):
+    def __init__(self, opt, input_type, use_bias, use_noise=False, return_features=False):
         super(Generator, self).__init__()
         self.input_type = input_type
         self.opt = opt
         self.use_noise=use_noise
-        norm_layer = get_norm_layer(norm_type=opt.norm)
+        norm_layer = get_norm_layer(norm_type=opt.norm, n_gr=opt.n_gr)
         up_layer = get_upsampling(upsampling_type=opt.upsampling_type)
         if self.input_type == 'img_depth':
             base_nc = opt.ngf_img + opt.ngf_depth
@@ -861,30 +854,33 @@ class Generator(nn.Module):
                 input_nc_depth = opt.input_nc_depth + 1
             else:
                 input_nc_depth = opt.input_nc_depth
+            
             self.enc_img = EncoderImg(input_nc=opt.input_nc_img, base_nc=opt.ngf_img, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
             self.enc_depth = Encoder(input_nc=input_nc_depth, base_nc=opt.ngf_depth, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
             self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks = opt.n_blocks, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
 #             if opt.use_semantic:
 #                 self.dec_img = Decoder(base_nc=base_nc, output_nc=opt.output_nc_img, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='semantic')
             self.dec_depth = Decoder(base_nc=base_nc, output_nc=opt.output_nc_depth, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='depth')
-        elif self.input_type == 'depth':
-            base_nc = opt.ngf_depth * 2
-            self.enc_depth = Encoder(input_nc=opt.input_nc_depth, base_nc=base_nc, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
-            self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks = opt.n_blocks, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
-            self.dec_depth = Decoder(base_nc=base_nc, output_nc=opt.output_nc_depth, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='depth')
-        elif self.input_type == 'img_feature_depth':
-            base_nc = opt.ngf_img_feature + opt.ngf_depth
-            self.enc_depth = Encoder(input_nc=opt.input_nc_depth, base_nc=opt.ngf_depth, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
-            self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks=opt.n_blocks, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
+#         elif self.input_type == 'depth':
+#             base_nc = opt.ngf_depth * 2
+#             self.enc_depth = Encoder(input_nc=opt.input_nc_depth, base_nc=base_nc, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
+#             self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks = opt.n_blocks, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
+#             self.dec_depth = Decoder(base_nc=base_nc, output_nc=opt.output_nc_depth, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='depth')
+#         elif self.input_type == 'img_feature_depth':
+#             base_nc = opt.ngf_img_feature + opt.ngf_depth
+#             self.enc_depth = Encoder(input_nc=opt.input_nc_depth, base_nc=opt.ngf_depth, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
+#             self.bottlenec = ResnetBottlenec(base_nc=base_nc, n_blocks=opt.n_blocks, norm_layer=norm_layer, use_bias=use_bias, opt=opt)
 #             if opt.use_semantic:
 #                 self.dec_img = Decoder(base_nc=base_nc, output_nc=opt.output_nc_img, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='semantic')
-            self.dec_depth = Decoder(base_nc=base_nc, output_nc=opt.output_nc_depth, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='depth')
+#             self.dec_depth = Decoder(base_nc=base_nc, output_nc=opt.output_nc_depth, norm_layer=norm_layer, use_bias=use_bias, up_layer=up_layer, opt=opt, output='depth')
         else:
             raise NotImplementedError('Specify input type')
             
         init_weights(net=self.enc_depth, init_type=opt.init_type, init_gain='relu')
         init_weights(net=self.bottlenec, init_type=opt.init_type, init_gain='relu')
         init_weights(net=self.dec_depth, init_type=opt.init_type, init_gain='relu')
+        if not opt.use_ada:
+            init_weights(net=self.enc_img, init_type=opt.init_type, init_gain='relu')
     
     def forward(self, depth, img=None, self_domain=True, mu=None, std=None, noise=None):
         if self.input_type == 'img_depth':
@@ -906,15 +902,15 @@ class Generator(nn.Module):
 #                 return depth, logits
 #             else:
 #                 return depth
-        elif self.input_type == 'depth':
-            depth = self.enc_depth(depth)
-            depth = self.bottlenec(depth)
-            return self.dec_depth(depth)
-        elif self.input_type == 'img_feature_depth':
-            depth = self.enc_depth(depth)
-            x = self.bottlenec(depth, img)
-            depth = self.dec_depth(x)
-            return depth
+#         elif self.input_type == 'depth':
+#             depth = self.enc_depth(depth)
+#             depth = self.bottlenec(depth)
+#             return self.dec_depth(depth)
+#         elif self.input_type == 'img_feature_depth':
+#             depth = self.enc_depth(depth)
+#             x = self.bottlenec(depth, img)
+#             depth = self.dec_depth(x)
+#             return depth
         else:
             raise NotImplementedError('specify direction')
             
@@ -971,8 +967,8 @@ def define_D(opt, input_type='depth'):
         net = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer)
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % opt.netD)
-    net = init_net(net=net, gpu_ids=opt.gpu_ids)
     init_weights(net=net, init_type=opt.init_type, init_gain='leaky_relu', param=0.2)
+    net = init_net(net=net, gpu_ids=opt.gpu_ids)
     if opt.use_spnorm:
         if opt.norm_d != 'none':
             print('Warning use spectral normalization with some network normalization')

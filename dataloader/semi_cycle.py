@@ -18,21 +18,15 @@ class SemiCycleDataset(BaseDataset):
         super().__init__(opt)
         self.add_extensions(['.png', '.jpg'])
         self.add_base_transform()
+        self.intrinsic_mtrx_path = opt.intrinsic_mtrx_path
+        
         self.dir_A_img = os.path.join(self.dir_A, 'img') 
         self.dir_A_depth = os.path.join(self.dir_A, 'depth') 
-#         if self.opt.use_semantic and self.opt.isTrain:
-#             self.dir_A_semantic = os.path.join(self.dir_A, 'semantic')
         self.dir_B_img = os.path.join(self.dir_B, 'img') 
         self.dir_B_depth = os.path.join(self.dir_B, 'depth') 
-        self.intrinsic_mtrx_path = opt.int_mtrx_scan
-
+        
         self.A_imgs = self.get_paths(self.dir_A_img)
         self.A_depths = self.get_paths(self.dir_A_depth)
-#         if self.opt.use_semantic and self.opt.isTrain:
-#             self.A_semantic = self.get_paths(self.dir_A_semantic)
-#             assert (len(self.A_imgs) == len(self.A_depths) == len(self.A_semantic)), 'not pair img depth semantic'
-#             self.is_image_files(self.A_imgs + self.A_depths + self.A_semantic)
-#         else:
         assert (len(self.A_imgs) == len(self.A_depths)), 'not pair img depth' 
         self.is_image_files(self.A_imgs + self.A_depths)
         
@@ -45,19 +39,16 @@ class SemiCycleDataset(BaseDataset):
         self.B_size = len(self.B_imgs)
         self.queue_A_index = queue.Queue()
         
+        self.prev_name = None
+        
     def update_A_idx(self):
         index = torch.randperm(self.A_size)
-        
         for i in range(len(index)):
             self.queue_A_index.put(index[i].item())
         
     def __getitem__(self, index):
         
-        A_depth, A_img, A_semantic, A_K, A_crop, B_depth, B_img, B_K, B_crop, A_img_n, B_img_n = self.load_data(index)
-#         if self.opt.use_semantic  and self.opt.isTrain:
-#             return {'A_depth': A_depth, 'A_img': A_img, 'A_semantic': A_semantic, 'A_name': A_img_n, 'B_depth': B_depth, 'B_img': B_img, 'B_name':B_img_n}
-#         else:
-#         return {'A_depth': A_depth, 'A_img': A_img, 'A_name': A_img_n, 'B_depth': B_depth, 'B_img': B_img, 'B_name':B_img_n}
+        A_depth, A_img, A_K, A_crop, B_depth, B_img, B_K, B_crop, A_img_n, B_img_n = self.load_data(index)
         return {'A_depth': A_depth, 'A_img': A_img, 'A_K':A_K, 'A_crop':A_crop, 'A_name': A_img_n, 'B_depth': B_depth, 'B_img': B_img, 'B_K':B_K, 'B_crop':B_crop, 'B_name':B_img_n}
     
     def load_data(self, index):
@@ -72,19 +63,16 @@ class SemiCycleDataset(BaseDataset):
         
         A_img_path = self.A_imgs[index_A]
         A_depth_path = self.A_depths[index_A]
-#         if self.opt.use_semantic and self.opt.isTrain:
-#             A_semantic_path = self.A_semantic[index_A]
         
         B_img_path = self.B_imgs[index_B]
         B_depth_path = self.B_depths[index_B]
 
         A_img_n = self.get_name(A_img_path)
         A_depth_n = self.get_name(A_depth_path)
-#         if self.opt.use_semantic  and self.opt.isTrain:
-#             A_semantic_n = self.get_name(A_semantic_path)
-#             assert (A_img_n == A_depth_n == A_semantic_n), 'not pair img depth semantic'
-#         else:
         assert (A_img_n == A_depth_n), 'not pair img depth '
+        
+        assert self.prev_name != A_img_n, 'something wrong :)'
+        self.prev_name = A_img_n
         
         B_img_n = self.get_name(B_img_path)
         B_depth_n = self.get_name(B_depth_path)
@@ -94,19 +82,18 @@ class SemiCycleDataset(BaseDataset):
             assert A_depth_n==B_depth_n, 'not pair lq, hq depth'
         
         A_K = self.get_imp_matrx(A_depth_n)
-        B_K = self.get_imp_matrx(B_depth_n)
+        if self.opt.datasets == 'Scannet_Scannet':
+            B_K = self.get_imp_matrx(B_depth_n)
+        elif self.opt.datasets == 'Scannet_Interiornet':
+            B_K = np.array([[600., 0., 320.], [0., 600., 240.], [0., 0., 1.]]) ###CHECK
         
         A_depth = self.read_data(A_depth_path)
         A_img = self.read_data(A_img_path)
-        if self.opt.use_semantic  and self.opt.isTrain:
-            A_semantic = self.read_data(A_semantic_path)
-        else:
-            A_semantic = None
-            
+    
         B_depth = self.read_data(B_depth_path)
         B_img = self.read_data(B_img_path)
         
-        A_depth, A_img, _, A_r_crop = self.transform('A', A_depth, A_img)
+        A_depth, A_img, A_r_crop = self.transform('A', A_depth, A_img)
         if self.opt.datasets == 'Scannet_Scannet':
             if self.opt.phase == 'train':
                 A_crop = np.array(A_r_crop, dtype=np.int16)
@@ -115,13 +102,19 @@ class SemiCycleDataset(BaseDataset):
                 A_crop = np.array([A_h_start, A_h_stop, A_w_start, A_w_stop], dtype=np.int16)
             else:
                 A_crop = np.array([0, 480, 0, 640], dtype=np.int16)
-        elif self.opt.datasets == 'Redwood_Redwood':
+#         elif self.opt.datasets == 'Redwood_Redwood':
+#             if self.opt.phase == 'train':
+#                 A_crop = np.array(A_r_crop, dtype=np.int16)
+#             else:
+#                 A_crop = np.array([0, 480, 0, 640], dtype=np.int16)
+#         elif self.opt.datasets == 'Scannet_Scenenet':
+#             if self.opt.phase == 'train':
+#                 A_crop = np.array(A_r_crop, dtype=np.int16)
+        elif self.opt.datasets == 'Scannet_Interiornet':
             if self.opt.phase == 'train':
                 A_crop = np.array(A_r_crop, dtype=np.int16)
-            else:
-                A_crop = np.array([0, 480, 0, 640], dtype=np.int16)
                 
-        B_depth, B_img, _ , B_r_crop = self.transform('B', B_depth, B_img)
+        B_depth, B_img, B_r_crop = self.transform('B', B_depth, B_img)
         if self.opt.datasets == 'Scannet_Scannet':
             if self.opt.phase != 'test':
                 B_h_start, B_h_stop, B_w_start, B_w_stop = self.crop_indx(B_depth_n)
@@ -133,18 +126,25 @@ class SemiCycleDataset(BaseDataset):
                     B_crop = np.array([B_h_start, B_h_stop, B_w_start, B_w_stop],  dtype=np.int16)
             else:
                 B_crop = np.array([0, 960, 0, 1280], dtype=np.int16)
-        elif self.opt.datasets == 'Redwood_Redwood':
+#         elif self.opt.datasets == 'Redwood_Redwood':
+#             if self.opt.phase == 'train':
+#                 B_crop = np.array(B_r_crop, dtype=np.int16)
+#             else:
+#                 B_crop = np.array([0, 480, 0, 640], dtype=np.int16)
+#         elif self.opt.datasets == 'Scannet_Scenenet':
+#             if self.opt.phase == 'train':
+#                 B_crop = np.array(B_r_crop, dtype=np.int16)
+#             else:
+#                 B_crop = np.array([0, 480, 0, 640], dtype=np.int16)     
+        elif self.opt.datasets == 'Scannet_Interiornet':
             if self.opt.phase == 'train':
                 B_crop = np.array(B_r_crop, dtype=np.int16)
-            else:
-                B_crop = np.array([0, 480, 0, 640], dtype=np.int16)
-
         
         if self.opt.isTrain:
             if self.bad_img(A_depth, A_img, B_depth, B_img):
                 print('Try new img')
-                A_depth, A_img, A_semantic, A_K, A_crop, B_depth, B_img, B_K, B_crop, A_img_n, B_img_n = self.load_data(torch.randint(low=0, high=self.B_size, size=(1,)).item())
-        return A_depth, A_img, A_semantic, A_K, A_crop, B_depth, B_img, B_K, B_crop, A_img_n, B_img_n
+                A_depth, A_img, A_K, A_crop, B_depth, B_img, B_K, B_crop, A_img_n, B_img_n = self.load_data(torch.randint(low=0, high=self.B_size, size=(1,)).item())
+        return A_depth, A_img, A_K, A_crop, B_depth, B_img, B_K, B_crop, A_img_n, B_img_n
         
     
     def bad_img(self, *imgs):
@@ -157,18 +157,11 @@ class SemiCycleDataset(BaseDataset):
                 return True
         return False
         
-    def apply_transformer(self, transformations, img, depth, semantic=None):
-        if semantic is not None:
-            target = {
-                'image':'image',
-                'depth':'image',
-                'mask': 'mask',}
-            res = A.Compose(transformations, p=1, additional_targets=target)(image=img, depth=depth, mask=semantic)
-        else:
-            target = {
-                'image':'image',
-                'depth':'image',}
-            res = A.Compose(transformations, p=1, additional_targets=target)(image=img, depth=depth)
+    def apply_transformer(self, transformations, img, depth):
+        target = {
+            'image':'image',
+            'depth':'image',}
+        res = A.Compose(transformations, p=1, additional_targets=target)(image=img, depth=depth)
         return res
     
     def add_base_transform(self):
@@ -188,7 +181,18 @@ class SemiCycleDataset(BaseDataset):
                 w_A = 640
                 h_B = 960
                 w_B = 1280
-        elif self.opt.datasets == 'Redwood_Redwood':
+#         elif self.opt.datasets == 'Redwood_Redwood':
+#             h_A = 480
+#             w_A = 640
+#             h_B = 480
+#             w_B = 640
+#         elif self.opt.datasets == 'Scannet_Scenenet':
+#             h_A = 480
+#             w_A = 640
+#             h_B = 480
+#             w_B = 640
+            
+        elif self.opt.datasets == 'Scannet_Interiornet':
             h_A = 480
             w_A = 640
             h_B = 480
@@ -196,13 +200,13 @@ class SemiCycleDataset(BaseDataset):
         self.transforms_A.append(A.Resize(height=h_A, width=w_A, interpolation=4, p=1))
         self.transforms_B.append(A.Resize(height=h_B, width=w_B, interpolation=4, p=1))
     
-    def transform(self, domain, depth, img, semantic=None):
+    def transform(self, domain, depth, img):
         img = self.normalize_img(img)
         depth = self.normalize_depth(depth)
         if domain == 'A':
-            transformed = self.apply_transformer(self.transforms_A, img, depth, semantic)
+            transformed = self.apply_transformer(self.transforms_A, img, depth)
         elif domain == 'B':
-            transformed = self.apply_transformer(self.transforms_B, img, depth, semantic)
+            transformed = self.apply_transformer(self.transforms_B, img, depth)
         img = transformed['image']
         depth = transformed['depth']
         if self.opt.phase == 'train':
@@ -211,10 +215,7 @@ class SemiCycleDataset(BaseDataset):
             crop = [0]
         img = torch.from_numpy(img).permute(2, 0, 1)
         depth = torch.from_numpy(depth).unsqueeze(0)
-        if semantic is not None:
-            semantic = transformed['mask']
-            semantic = torch.from_numpy(semantic).long()
-        return depth, img, semantic, crop
+        return depth, img, crop
     
     def get_random_crop_coords(self, height: int, width: int, crop_height: int, crop_width: int):
         y1 = int(torch.randint(low=0, high=height - crop_height + 1, size=(1,)).item())

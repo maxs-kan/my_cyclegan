@@ -23,7 +23,7 @@ class SRDataset(BaseDataset):
         self.dir_A_depth = os.path.join(self.dir_A, 'depth') 
         
         self.dir_B_img = os.path.join(self.dir_B, 'img') 
-        self.dir_B_depth = os.path.join(self.dir_B, 'hr') 
+        self.dir_B_depth = os.path.join(self.dir_B, 'hr') if self.opt.phase != 'test' else os.path.join(self.dir_B, 'depth')
         self.intrinsic_mtrx_path = opt.int_mtrx_scan
 
         self.A_imgs = self.get_paths(self.dir_A_img)
@@ -47,8 +47,8 @@ class SRDataset(BaseDataset):
             self.queue_A_index.put(index[i].item())
         
     def __getitem__(self, index):
-        A_depth, A_img, A_K, A_crop, B_depth, B_img, B_K, B_crop, A_img_n, B_img_n = self.load_data(index)
-        return {'A_depth': A_depth, 'A_img': A_img, 'A_K':A_K, 'A_crop':A_crop, 'A_name': A_img_n, 'B_depth': B_depth, 'B_img': B_img, 'B_K':B_K, 'B_crop':B_crop, 'B_name':B_img_n}
+        A_depth, A_img, A_K, A_K_sr, A_crop, B_depth, B_img, B_K, B_K_sr, B_crop, A_img_n, B_img_n = self.load_data(index)
+        return {'A_depth': A_depth, 'A_img': A_img, 'A_K':A_K, 'A_K_sr':A_K_sr, 'A_crop':A_crop, 'A_name': A_img_n, 'B_depth': B_depth, 'B_img': B_img, 'B_K':B_K, 'B_K_sr':B_K_sr, 'B_crop':B_crop, 'B_name':B_img_n}
     
     def load_data(self, index):
         
@@ -78,7 +78,9 @@ class SRDataset(BaseDataset):
             assert A_depth_n==B_depth_n, 'not pair lq, hq depth'
         
         A_K = self.get_imp_matrx(A_depth_n)
-        B_K = self.get_imp_matrx(B_depth_n, sr=True)
+        A_K_sr = self.get_imp_matrx(A_depth_n, up=True)
+        B_K = self.get_imp_matrx(B_depth_n)
+        B_K_sr = self.get_imp_matrx(B_depth_n, up=True)
         
         A_depth = self.read_data(A_depth_path)
         A_img = self.read_data(A_img_path)
@@ -95,11 +97,6 @@ class SRDataset(BaseDataset):
                 A_crop = np.array([A_h_start, A_h_stop, A_w_start, A_w_stop], dtype=np.int16)
             else:
                 A_crop = np.array([0, 480, 0, 640], dtype=np.int16)
-        elif self.opt.datasets == 'Redwood_Redwood':
-            if self.opt.phase == 'train':
-                A_crop = np.array(A_r_crop, dtype=np.int16)
-            else:
-                A_crop = np.array([0, 480, 0, 640], dtype=np.int16)
                 
         B_depth, B_img, B_r_crop = self.transform('B', B_depth, B_img)
         if self.opt.datasets == 'Scannet_Scannet':
@@ -113,18 +110,12 @@ class SRDataset(BaseDataset):
                     B_crop = np.array([B_h_start, B_h_stop, B_w_start, B_w_stop],  dtype=np.int16)
             else:
                 B_crop = np.array([0, 960, 0, 1280], dtype=np.int16)
-        elif self.opt.datasets == 'Redwood_Redwood':
-            if self.opt.phase == 'train':
-                B_crop = np.array(B_r_crop, dtype=np.int16)
-            else:
-                B_crop = np.array([0, 480, 0, 640], dtype=np.int16)
-
         
         if self.opt.isTrain:
             if self.bad_img(A_depth, A_img, B_depth, B_img):
                 print('Try new img')
-                A_depth, A_img, A_K, A_crop, B_depth, B_img, B_K, B_crop, A_img_n, B_img_n = self.load_data(torch.randint(low=0, high=self.B_size, size=(1,)).item())
-        return A_depth, A_img, A_K, A_crop, B_depth, B_img, B_K, B_crop, A_img_n, B_img_n
+                A_depth, A_img, A_K, A_K_sr, A_crop, B_depth, B_img, B_K, B_K_sr, B_crop, A_img_n, B_img_n = self.load_data(torch.randint(low=0, high=self.B_size, size=(1,)).item())
+        return A_depth, A_img, A_K, A_K_sr, A_crop, B_depth, B_img, B_K, B_K_sr, B_crop, A_img_n, B_img_n
         
     
     def bad_img(self, *imgs):

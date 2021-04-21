@@ -57,50 +57,50 @@ class BaseModel(ABC, torch.nn.Module):
         if not self.isTrain or self.opt.continue_train:
             load_suffix = 'iter_%d' % self.opt.load_iter if self.opt.load_iter > 0 else self.opt.load_epoch
             self.load_networks(load_suffix)
-        elif self.opt.use_pretrain_weights_A:
-            load_suffix = self.opt.load_epoch_weights
-            self.load_weights(load_suffix, 'netG_A')
-        elif self.opt.use_pretrain_weights_B:
-            load_suffix = self.opt.load_epoch_weights
-            self.load_weights(load_suffix, 'netG_B')
-        if self.opt.use_pretrain_img2depth:
-            self.load_img2depth()
+#         elif self.opt.use_pretrain_weights_A:
+#             load_suffix = self.opt.load_epoch_weights
+#             self.load_weights(load_suffix, 'netG_A')
+#         elif self.opt.use_pretrain_weights_B:
+#             load_suffix = self.opt.load_epoch_weights
+#             self.load_weights(load_suffix, 'netG_B')
+#         if self.opt.use_pretrain_img2depth:
+#             self.load_img2depth()
         self.print_networks()
     
-    def load_img2depth(self):
-        load_filename = '%s.pt' % (self.opt.load_epoch_img2depth)
-        load_path = os.path.join(self.opt.img2depth_dir, load_filename)
-        checkpoint = torch.load(load_path, map_location=self.device)
-        for name in  self.extra_model:
-            assert isinstance(name, str), 'model name must be str'
-            net = getattr(self, name)
-            if isinstance(net, torch.nn.DataParallel):
-                net = net.module
-            print('loading the model {} from {}'.format(name, load_path))
-            state_dict = checkpoint[name]
-            if hasattr(state_dict, '_metadata'):
-                del state_dict._metadata
-            net.load_state_dict(state_dict)
-            self.set_requires_grad([net], requires_grad=False)
-            net.eval()
+#     def load_img2depth(self):
+#         load_filename = '%s.pt' % (self.opt.load_epoch_img2depth)
+#         load_path = os.path.join(self.opt.img2depth_dir, load_filename)
+#         checkpoint = torch.load(load_path, map_location=self.device)
+#         for name in  self.extra_model:
+#             assert isinstance(name, str), 'model name must be str'
+#             net = getattr(self, name)
+#             if isinstance(net, torch.nn.DataParallel):
+#                 net = net.module
+#             print('loading the model {} from {}'.format(name, load_path))
+#             state_dict = checkpoint[name]
+#             if hasattr(state_dict, '_metadata'):
+#                 del state_dict._metadata
+#             net.load_state_dict(state_dict)
+#             self.set_requires_grad([net], requires_grad=False)
+#             net.eval()
     
-    def load_weights(self, epoch, net):
-        load_filename = '%s.pt' % (epoch)
-        load_path = os.path.join(self.opt.weights_dir, load_filename)
-        checkpoint = torch.load(load_path, map_location=self.device)
-        for name in [net]:
-            assert isinstance(name, str), 'model name must be str'
-            net = getattr(self, name)
-            if isinstance(net, torch.nn.DataParallel):
-                net = net.module
-            try:
-                state_dict = checkpoint[name]
-            except:
-                continue
-            print('loading the model {} from {}'.format(name, load_path))
-            if hasattr(state_dict, '_metadata'):
-                del state_dict._metadata
-            net.load_state_dict(state_dict)
+#     def load_weights(self, epoch, net):
+#         load_filename = '%s.pt' % (epoch)
+#         load_path = os.path.join(self.opt.weights_dir, load_filename)
+#         checkpoint = torch.load(load_path, map_location=self.device)
+#         for name in [net]:
+#             assert isinstance(name, str), 'model name must be str'
+#             net = getattr(self, name)
+#             if isinstance(net, torch.nn.DataParallel):
+#                 net = net.module
+#             try:
+#                 state_dict = checkpoint[name]
+#             except:
+#                 continue
+#             print('loading the model {} from {}'.format(name, load_path))
+#             if hasattr(state_dict, '_metadata'):
+#                 del state_dict._metadata
+#             net.load_state_dict(state_dict)
     
     def train_mode(self):
         for name in self.model_names:

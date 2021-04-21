@@ -26,9 +26,15 @@ class BaseDataset(data.Dataset, ABC):
             else:
                 self.dir_A = os.path.join(self.root, self.opt.phase + 'A')
                 self.dir_B = os.path.join(self.root, self.opt.phase + 'B')
-        elif opt.datasets == 'Redwood_Redwood':
-            self.dir_A = os.path.join(self.root, self.opt.phase + 'A')
-            self.dir_B = os.path.join(self.root, self.opt.phase + 'B')
+#         elif opt.datasets == 'Redwood_Redwood':
+#             self.dir_A = os.path.join(self.root, self.opt.phase + 'A')
+#             self.dir_B = os.path.join(self.root, self.opt.phase + 'B')
+#         elif opt.datasets == 'Scannet_Scenenet':
+#             self.dir_A = os.path.join('/all_data/Scannet_ssim/', self.opt.phase + 'A', 'full_size')
+#             self.dir_B = os.path.join('/all_data/SceneNet_6m/', self.opt.phase + 'B')
+        elif opt.datasets == 'Scannet_Interiornet':
+            self.dir_A = os.path.join('/all_data/Scannet_ssim/', self.opt.phase + 'A', 'full_size')
+            self.dir_B = os.path.join('/all_data/InteriorNet_5.1m/', self.opt.phase + 'B')
         self.img_mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
         self.img_std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
     
@@ -52,28 +58,25 @@ class BaseDataset(data.Dataset, ABC):
     def crop_indx(self, f_name, sr=False):
         i, j = f_name.split('_')[3:]
         i, j = int(i), int(j)
-        if sr:
-            h_start = 128 * i + 10
-            h_stop = h_start + 640
-            w_start = 128 * j + 10
-            w_stop = w_start + 640
-        else:
-            h_start = 64 * i + 5
-            h_stop = h_start + 320
-            w_start = 64 * j + 5
-            w_stop = w_start + 320
+#         if sr:
+#             h_start = 128 * i + 10
+#             h_stop = h_start + 640
+#             w_start = 128 * j + 10
+#             w_stop = w_start + 640
+#         else:
+        h_start = 64 * i + 5
+        h_stop = h_start + 320
+        w_start = 64 * j + 5
+        w_stop = w_start + 320
         return h_start, h_stop, w_start, w_stop
     
-    def get_imp_matrx(self, f_name, sr=False):
-        if self.opt.datasets == 'Scannet_Scannet':
-            K = np.loadtxt(os.path.join(self.intrinsic_mtrx_path, f_name[:12], 'intrinsic', 'intrinsic_depth.txt'))[:3,:3]
-            if sr:
-                K[0,0] *= 2.
-                K[1,1] *= 2.
-                K[0,2] *= 2.
-                K[1,2] *= 2.
-        elif self.opt.datasets == 'Redwood_Redwood':
-            K = np.array([[525., 0., 319.5], [0., 525., 239.5], [0., 0., 1.]])
+    def get_imp_matrx(self, f_name, up=False):
+        K = np.loadtxt(os.path.join(self.intrinsic_mtrx_path, f_name[:12], 'intrinsic', 'intrinsic_depth.txt'))[:3,:3]
+#         if up:
+#             K[0,0] *= 2.
+#             K[1,1] *= 2.
+#             K[0,2] *= 2.
+#             K[1,2] *= 2.   
         return K
     
     def normalize_img(self, img):
@@ -96,6 +99,7 @@ class BaseDataset(data.Dataset, ABC):
         if isinstance(depth, np.ndarray):
             if depth.dtype == np.uint16:
                 depth = depth.astype(np.float64)
+#                 depth = np.clip(depth, 0, 5100.)
                 depth = depth / self.scale - 1.
                 return depth
             else:

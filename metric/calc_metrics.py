@@ -9,6 +9,7 @@ from glob import glob
 import multiprocessing
 import functools
 import torch
+import cv2
 
 holes_threshold = 50
 
@@ -206,20 +207,22 @@ def calc_metrics(pred, target, hole_map, target_hole_map, K, max_depth, metric_n
 def calc_metrics_for_path(path_args, metric_names, max_depth):
     input_path, pred_path, target_path, intrisic_path = path_args
     input_orig = imageio.imread(input_path).astype(np.float64)
-    pred = imageio.imread(pred_path).astype(np.float64).clip(0, max_depth) 
-    target = imageio.imread(target_path).astype(np.float64).clip(0, max_depth)
+    pred = imageio.imread(pred_path).astype(np.float64)#.clip(0, max_depth) 
+    target = imageio.imread(target_path).astype(np.float64)#.clip(0, max_depth)
     
     h_pred, w_pred = pred.shape
     h_target, w_target = target.shape
     if 2*h_pred == h_target: # if our target is 2x bigger than prediction
         target = target[0::2, 0::2]
-
+    if h_pred == h_target:
+        input_orig  = cv2.resize(input_orig, (w_target, h_target), interpolation = cv2.INTER_CUBIC)
     hole_map = input_orig < holes_threshold
     target_hole_map = target < holes_threshold
-    try:
-        K = np.loadtxt(intrisic_path)[:3,:3] 
-    except:
-        K = np.array([[525., 0., 319.5], [0., 525., 239.5], [0., 0., 1.]])
+    K = np.loadtxt(intrisic_path)[:3,:3] 
+    if h_pred == h_target: 
+        K = K * np.array([[2., 1., 2.], [1., 2., 2.], [1., 1., 1.]])
+#     except:
+#         K = np.array([[525., 0., 319.5], [0., 525., 239.5], [0., 0., 1.]])
     return calc_metrics(pred, target, hole_map, target_hole_map, K, max_depth, metric_names)
 
 def calculate_given_paths(input_dir_path, pred_dir_path, target_dir_path, metric_names, max_depth, n_cpus):
@@ -229,11 +232,8 @@ def calculate_given_paths(input_dir_path, pred_dir_path, target_dir_path, metric
     
     #check that filenames are the same
     
-    try:
-        intrinsic_names = list(map(lambda x: os.path.join('/all_data/Scannet', x[:12], 'intrinsic', 'intrinsic_depth.txt'),
+    intrinsic_names = list(map(lambda x: os.path.join('/all_data/Scannet', x[:12], 'intrinsic', 'intrinsic_depth.txt'),
                                (filter_basename(input_name) for input_name in input_names)))
-    except:
-        intrinsic_names = [None for _ in input_names]
     _calc_metrics_for_path = functools.partial(calc_metrics_for_path, metric_names=metric_names, max_depth=max_depth)
     paths = zip(input_names, pred_names, target_names, intrinsic_names)
     with multiprocessing.Pool(n_cpus) as p:
@@ -256,5 +256,5 @@ if __name__ == '__main__':
     parser.add_argument('--n_cpus', type=int, default=10, help='Number of cpu cores to use')
     args = parser.parse_args()
 
-    list_of_metrics = ["rmse", "mae", "rmse_h", "rmse_d", "psnr", "ssim", "mae_h", "mae_d", "mse_v"]
+    list_of_metrics = ["rmse", "rmse_h", "rmse_d", "mae", "mae_h", "mae_d", "mse_v"] #"psnr", "ssim",
     calculate_given_paths(args.input_path, args.pred_path, args.target_path, list_of_metrics, args.max_depth, args.n_cpus)
